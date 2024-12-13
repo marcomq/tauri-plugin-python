@@ -1,9 +1,51 @@
-import { invoke } from '@tauri-apps/api/core'
+/** Nimview UI Library 
+ * © Copyright 2024, by Marco Mengelkoch
+ * Licensed under MIT License, see License file for more details
+ * git clonehttps://github.com/marcomq/tauri-python-plugin
+**/
 
-export async function ping(value: string): Promise<string | null> {
-  return await invoke<{value?: string}>('plugin:python|ping', {
+import { invoke } from '@tauri-apps/api/core'
+export let py: { [index: string]: Function } = {}; // array of functions
+
+export async function runPython(code: string): Promise<string> {
+  return await invoke<{ value: string }>('plugin:python|run_python', {
+    payload: {
+      value: code,
+    },
+  }).then((r) => {
+    return r.value;
+  });
+}
+
+export async function registerFunction(functionName: string, numberOfArgs?: number): Promise<string> {
+  return await invoke<{ value: string }>('plugin:python|register_function', {
+    payload: {
+      functionName,
+      numberOfArgs,
+    },
+  }).then((r) => {
+    py[functionName] = function (...args: any[]) { return callFunction(functionName, args) };
+    return r.value;
+  });
+}
+
+export async function callFunction(functionName: string, args: any[]): Promise<string> {
+  return invoke<{ value: string }>('plugin:python|call_function', {
+    payload: {
+      functionName,
+      args,
+    },
+  }).then((r) => {
+    return r.value;
+  });
+}
+
+export async function readVariable(value: string): Promise<string> {
+  return invoke<{ value: string }>('plugin:python|read_variable', {
     payload: {
       value,
     },
-  }).then((r) => (r.value ? r.value : null));
+  }).then((r) => {
+    return r.value;
+  });
 }
