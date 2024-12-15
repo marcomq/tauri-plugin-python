@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tauri App</title>
     <script type="module" src="/main.js" defer></script>
+    <script type="module" src="/tauri-python-plugin-api/index.iife.js" defer></script>
   </head>
 
   <body>
@@ -29,11 +30,12 @@
       </div>
       <p>Click on the Tauri logo to learn more about the framework</p>
 
-      <form class="row" id="greet-form">
-        <input id="greet-input" placeholder="Enter a name..." />
-        <button type="submit">Greet</button>
+      <form class="row" id="callback-form">
+        <input id="input-field" placeholder="Enter something" />
+        <button value="submit_rust" type="submit">Rust</button>
+        <button value="submit_python" type="submit">Python</button>
       </form>
-      <p id="greet-msg"></p>
+      <p id="output-element"></p>
     </main>
   </body>
 </html>

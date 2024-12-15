@@ -1,10 +1,9 @@
 # auto loaded on startup
 
-a = 0
-def testing(c, b):
-  global a
-  a = a + 1
-  print(c)
-  print(b)
-  print("hello world: " + str(c))
-  return str(a)+"testResult"+str(b)
+counter = 0
+
+def greet_python(a):
+  global counter
+  counter = counter + 1
+  print("first variable: " + str(a))
+  return f'Hello {a}! You\'ve been greeted {counter}  time(s) from Python.'

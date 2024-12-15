@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    javascript_lib::run()
+    plain_javascript_lib::run()
 }

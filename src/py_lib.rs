@@ -1,3 +1,9 @@
+//  Tauri Python Plugin
+//  © Copyright 2024, by Marco Mengelkoch
+//  Licensed under MIT License, see License file for more details
+//  git clone https://github.com/marcomq/tauri-python-plugin
+
+use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, ffi::CString, sync::Mutex};
 
 use lazy_static::lazy_static;
@@ -10,6 +16,7 @@ use crate::models::*;
 use crate::py_main_import;
 
 lazy_static! {
+    static ref INIT_BLOCKED: AtomicBool = false.into();
     static ref FUNCTION_MAP: Mutex<HashMap<String, Py<PyAny>>> = Mutex::new(HashMap::new());
     static ref GLOBALS: Mutex<Py<PyDict>> =
         Mutex::new(marker::Python::with_gil(|py| { PyDict::new(py).into() }));
@@ -34,6 +41,11 @@ pub fn run_python(payload: StringRequest) -> PyResult<()> {
 pub fn register_function(payload: RegisterRequest) -> PyResult<()> {
     let fn_name = payload.function_name;
     // TODO, check actual function signature
+    if INIT_BLOCKED.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err(pyo3::exceptions::PyException::new_err(
+            "Cannot register after function called",
+        ));
+    }
     marker::Python::with_gil(|py| -> PyResult<()> {
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
         let app = globals.get_item(&fn_name)?;
@@ -64,11 +76,13 @@ if True:
             py.run(&code_c, Some(&globals), None)
                 .expect(&format!("Could not register '{}'. ", &fn_name));
         }
+        // dbg!("{} was inserted", &fn_name);
         FUNCTION_MAP.lock().unwrap().insert(fn_name, app.into());
         Ok(())
     })
 }
 pub fn call_function(payload: RunRequest) -> PyResult<Py<PyAny>> {
+    INIT_BLOCKED.store(true, std::sync::atomic::Ordering::Relaxed);
     marker::Python::with_gil(|py| -> PyResult<Py<PyAny>> {
         let arg = pyo3::types::PyTuple::new(py, payload.args)?;
         let map = FUNCTION_MAP

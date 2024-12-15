@@ -1,8 +1,7 @@
-/** Nimview UI Library 
- * Copyright (C) 2024, by Marco Mengelkoch
- * Licensed under MIT License, see License file for more details
- * git clone https://github.com/marcomq/tauri-python-plugin
-**/
+//  Tauri Python Plugin
+//  © Copyright 2024, by Marco Mengelkoch
+//  Licensed under MIT License, see License file for more details
+//  git clone https://github.com/marcomq/tauri-python-plugin
 
 use std::path::Path;
 
@@ -23,6 +22,7 @@ fn main() {
     }
 
     tauri_plugin::Builder::new(COMMANDS)
+        // .global_api_script_path("./api-iife.js")
         .android_path("android")
         .ios_path("ios")
         .build();

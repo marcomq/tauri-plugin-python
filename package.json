@@ -10,7 +10,8 @@
   "exports": {
     "types": "./dist-js/index.d.ts",
     "import": "./dist-js/index.js",
-    "require": "./dist-js/index.cjs"
+    "require": "./dist-js/index.cjs",
+    "html": "./dist-js/index.iife.js"
   },
   "files": [
     "dist-js",
@@ -25,9 +26,10 @@
     "@tauri-apps/api": ">=2.0.0-beta.6"
   },
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.3.0",
     "@rollup/plugin-typescript": "^11.1.6",
     "rollup": "^4.9.6",
-    "typescript": "^5.3.3",
-    "tslib": "^2.6.2"
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3"
   }
 }

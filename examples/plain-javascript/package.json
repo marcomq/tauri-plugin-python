@@ -1,12 +1,15 @@
 {
-  "name": "javascript",
+  "name": "plain_javascript",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "build": "mkdir -p src/tauri-python-plugin-api && cp node_modules/tauri-plugin-python-api/dist-js/index.iife.js src/tauri-python-plugin-api/index.iife.js",
+    "pretauri": "npm run build",
     "tauri": "tauri"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.1.1",
     "tauri-plugin-python-api": "file:../../"
   },
   "devDependencies": {
