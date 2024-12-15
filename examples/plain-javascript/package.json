@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "mkdir -p src/tauri-python-plugin-api && cp node_modules/tauri-plugin-python-api/dist-js/index.iife.js src/tauri-python-plugin-api/index.iife.js",
+    "build": "mkdir -p src/tauri-plugin-python-api && cp node_modules/tauri-plugin-python-api/dist-js/index.iife.js src/tauri-plugin-python-api/index.iife.js",
     "pretauri": "npm run build",
     "tauri": "tauri"
   },

@@ -1,7 +1,7 @@
 /** Tauri Python Plugin
  * © Copyright 2024, by Marco Mengelkoch
  * Licensed under MIT License, see License file for more details
- * git clonehttps://github.com/marcomq/tauri-python-plugin
+ * git clonehttps://github.com/marcomq/tauri-plugin-python
 **/
 export declare let py: {
     [index: string]: Function;

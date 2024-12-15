@@ -9,7 +9,7 @@ and Vanilla Javascript
 - modify `permissions:[]` in src-tauri/capabilities/default.json and add "python:default"  
 - modify `src-tauri/src-python/main.py` and add python code, for example `def greet_python(..`
 - add `.plugin(tauri_plugin_python::init())` to `src-tauri/src/lib.rs`
-- include javascript for python plugin for example by adding `<script type="module" src="/tauri-python-plugin-api/index.iife.js" defer></script>`
+- include javascript for python plugin for example by adding `<script type="module" src="/tauri-plugin-python-api/index.iife.js" defer></script>`
 - register python functions in javascript by calling `registerFunction("greet_python");`
 - calling python function by calling `py.greet_python(...)`
 

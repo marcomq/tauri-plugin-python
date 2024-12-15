@@ -17,7 +17,7 @@ low-level code.
 ## Example
 
 There is a running sample application using this plugin and vanilla 
-Javascript in https://github.com/marcomq/tauri-python-plugin/tree/main/examples/plain-javascript
+Javascript in https://github.com/marcomq/tauri-plugin-python/tree/main/examples/plain-javascript
 
 ## Security considerations
 This plugin can make it possible to run arbitrary python code that is injected
