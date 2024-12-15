@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+src/tauri-plugin-python-api/index.iife.js
 
 # Editor directories and files
 .vscode/*

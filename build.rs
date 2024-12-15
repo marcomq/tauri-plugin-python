@@ -13,7 +13,7 @@ const COMMANDS: &[&str] = &[
 ];
 
 fn main() {
-    let py_main = concat!(env!("PWD"), "/src-python/main.py");
+    let py_main = concat!(env!("PWD"), "/src-tauri/src-python/main.py");
     let py_main_path = Path::new(py_main);
     if !py_main_path.exists() {
         let parent = py_main_path.parent().unwrap_or(py_main_path);
