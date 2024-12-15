@@ -5,5 +5,6 @@ counter = 0
 def greet_python(a):
   global counter
   counter = counter + 1
-  print("first variable: " + str(a))
-  return f'Hello {a}! You\'ve been greeted {counter}  time(s) from Python.'
+  print("received: " + str(a))
+  s = "" if counter < 2 else "s"
+  return f'Hello {a}! You\'ve been greeted {counter} time{s} from Python.'
