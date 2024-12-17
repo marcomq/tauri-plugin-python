@@ -3,12 +3,14 @@
 This [tauri](https://v2.tauri.app/) plugin is supposed to make it easy to use Python as backend code.
 It uses [PyO3](https://pyo3.rs) to call python from rust.
 The plugin reads by default the file `src-tauri/src-python/main.py` during 
-compile time and runs it during startup. It then can call functions that were embedded in this python code.
+startup and runs it immediately. Python functions are then registered during initialization 
+and can get called during application workflow.
 
 Python code can be registered and called from javascript without the 
 requirement to touch rust code at all.
 You can still use rust to register all python functions if you have any security concerns,
 for example when using inputs from other network interfaces.
+The first call of a function will prevent registering further python functions.
 
 
 You might use this plugin to create simple prototype applications
