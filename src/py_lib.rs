@@ -24,7 +24,6 @@ lazy_static! {
 pub fn init_python() -> PyResult<()> {
     pyo3::prepare_freethreaded_python();
     let code = py_main_import::read_at_startup();
-    dbg!(&code);
     let c_code = CString::new(code).expect("error loading python");
     marker::Python::with_gil(|py| -> PyResult<()> {
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
