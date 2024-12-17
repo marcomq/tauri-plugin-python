@@ -26,7 +26,7 @@ pub enum JsMany {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterRequest {
-    pub function_name: String,
+    pub python_function_call: String,
     pub number_of_args: Option<u8>,
 }
 

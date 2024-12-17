@@ -18,14 +18,25 @@ export async function runPython(code: string): Promise<string> {
   });
 }
 
-export async function registerFunction(functionName: string, numberOfArgs?: number): Promise<string> {
+/** 
+ *  @param {string} pythonFunctionCall - The python function call, can contain one dot
+ *  @param {number} [numberOfArgs] - Number of arguments, used for validation in pythons, use -1 to ignore this value
+ *  @param {string} [jsFunctionName] - Name that is used in javscript: "call.jsFunctionName". Must not contain dots.
+ */
+export async function registerFunction(pythonFunctionCall: string, numberOfArgs?: number, jsFunctionName?: string): Promise<string> {
+  if (jsFunctionName === undefined) {
+    jsFunctionName = pythonFunctionCall;
+  }
+  if (numberOfArgs !== undefined && numberOfArgs < 0) {
+    numberOfArgs = undefined;
+  }
   return await invoke<{ value: string }>('plugin:python|register_function', {
     payload: {
-      functionName,
-      numberOfArgs,
+      pythonFunctionCall,
+      numberOfArgs
     },
   }).then((r:any) => {
-    call[functionName] = function (...args: any[]) { return callFunction(functionName, args) };
+    call[jsFunctionName] = function (...args: any[]) { return callFunction(pythonFunctionCall, args) };
     return r.value;
   });
 }

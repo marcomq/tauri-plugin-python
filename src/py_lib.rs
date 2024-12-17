@@ -8,7 +8,7 @@ use std::{collections::HashMap, ffi::CString, sync::Mutex};
 
 use lazy_static::lazy_static;
 use pyo3::exceptions::PyBaseException;
-use pyo3::types::{PyAnyMethods, PyDictMethods};
+use pyo3::types::{PyAnyMethods, PyDictMethods, PyList, PyListMethods};
 use pyo3::PyErr;
 use pyo3::{marker, types::PyDict, Py, PyAny, PyResult};
 
@@ -26,6 +26,11 @@ pub fn init_python() -> PyResult<()> {
     let code = py_main_import::read_at_startup();
     let c_code = CString::new(code).expect("error loading python");
     marker::Python::with_gil(|py| -> PyResult<()> {
+        let syspath = py
+            .import("sys")?
+            .getattr("path")?
+            .downcast_into::<PyList>()?;
+        syspath.insert(0, py_main_import::get_py_path().to_str())?;
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
         py.run(&c_code, Some(&globals), None)
     })
@@ -39,7 +44,7 @@ pub fn run_python(payload: StringRequest) -> PyResult<()> {
     })
 }
 pub fn register_function(payload: RegisterRequest) -> PyResult<()> {
-    let fn_name = payload.function_name;
+    let fn_name = payload.python_function_call;
     // TODO, check actual function signature
     if INIT_BLOCKED.load(std::sync::atomic::Ordering::Relaxed) {
         return Err(pyo3::exceptions::PyException::new_err(
@@ -48,14 +53,20 @@ pub fn register_function(payload: RegisterRequest) -> PyResult<()> {
     }
     marker::Python::with_gil(|py| -> PyResult<()> {
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
-        let app = globals.get_item(&fn_name)?;
+
+        let fn_dot_split: Vec<&str> = fn_name.split(".").collect();
+        let app = globals.get_item(&fn_dot_split[0])?;
         if app.is_none() {
             return Err(pyo3::exceptions::PyException::new_err(format!(
                 "{} not found",
                 &fn_name
             )));
         }
-        let app = app.unwrap();
+        let app = if fn_dot_split.len() > 1 {
+            app.unwrap().getattr(fn_dot_split.get(1).unwrap())?
+        } else {
+            app.unwrap()
+        };
         if !app.is_callable() {
             return Err(pyo3::exceptions::PyException::new_err(format!(
                 "{} not a callable function",
