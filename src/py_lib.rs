@@ -117,15 +117,20 @@ pub fn call_function(payload: RunRequest) -> PyResult<Py<PyAny>> {
 pub fn read_variable(payload: StringRequest) -> PyResult<String> {
     marker::Python::with_gil(|py| -> PyResult<String> {
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
-        match globals.get_item(&payload.value) {
-            Ok(opt_res) => match opt_res {
-                Some(res) => Ok(res.to_string()),
-                _ => Err(pyo3::exceptions::PyException::new_err(format!(
-                    "{} not set",
-                    payload.value
-                ))),
-            },
-            Err(err) => Err(err),
+
+        let var_dot_split: Vec<&str> = payload.value.split(".").collect();
+        let var = globals.get_item(&var_dot_split[0])?;
+        if let Some(var) = var {
+            if var_dot_split.len() > 1 {
+                Ok(var.getattr(var_dot_split.get(1).unwrap())?.to_string())
+            } else {
+                Ok(var.to_string())
+            }
+        } else {
+            Err(pyo3::exceptions::PyException::new_err(format!(
+                "{} not set",
+                &payload.value
+            )))
         }
     })
 }

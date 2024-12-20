@@ -9,7 +9,7 @@ async function greet_rust() {
   outputEl.textContent = await invoke("greet_rust", { name: inputField.value });
 }
 async function greet_python() {
-  outputEl.textContent = await tauri.python.call.greet_python( inputField.value );
+  outputEl.textContent = await tauri.python.call.greet_python(inputField.value);
 }
 
 window.addEventListener("DOMContentLoaded", () => {
