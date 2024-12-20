@@ -22,9 +22,8 @@ lazy_static! {
         Mutex::new(marker::Python::with_gil(|py| { PyDict::new(py).into() }));
 }
 pub fn init_python() -> PyResult<()> {
-    pyo3::prepare_freethreaded_python();
     let code = py_main_import::read_at_startup();
-    let c_code = CString::new(code).expect("error loading python");
+    let c_code = CString::new(code).expect("error creating cstring from code");
     marker::Python::with_gil(|py| -> PyResult<()> {
         let syspath = py
             .import("sys")?
