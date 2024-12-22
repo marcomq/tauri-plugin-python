@@ -10,6 +10,7 @@ use tauri::{
 };
 
 use crate::models::*;
+use crate::py_lib;
 
 #[cfg(target_os = "ios")]
 tauri::ios_plugin_binding!(init_plugin_python);
