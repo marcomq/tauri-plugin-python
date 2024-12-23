@@ -24,7 +24,7 @@ pub fn init<R: Runtime, C: DeserializeOwned>(
     api: PluginApi<R, C>,
 ) -> crate::Result<Python<R>> {
     #[cfg(target_os = "android")]
-    let handle = api.register_android_plugin("", "ExamplePlugin")?;
+    let handle = api.register_android_plugin("com.plugin.python.application", "ExamplePlugin")?;
     #[cfg(target_os = "ios")]
     let handle = api.register_ios_plugin(init_plugin_python)?;
     py_lib::init_python()?;
