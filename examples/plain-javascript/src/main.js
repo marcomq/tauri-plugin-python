@@ -9,10 +9,12 @@ async function greet_rust() {
 }
 async function greet_python() {
   outputEl.textContent = await tauri.python.call.greet_python(inputField.value);
+  // Alternatively:
+  // outputEl.textContent = await tauri.python.callFunction("greet_python", [inputField.value])
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-  tauri.python.registerJs("greet_python");
+  tauri.python.registerJs("greet_python"); // Optional, makes it possible to use "tauri.python.call.greet_python"
   inputField = document.querySelector("#input-field");
   outputEl = document.querySelector("#output-element");
   document.querySelector("#callback-form").addEventListener("submit", (e) => {
