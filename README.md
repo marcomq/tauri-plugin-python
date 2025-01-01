@@ -6,11 +6,14 @@ The plugin reads by default the file `src-tauri/src-python/main.py` during
 startup and runs it immediately. Python functions are then registered during initialization 
 and can get called during application workflow.
 
-Python code can be registered and called from javascript without the 
-requirement to touch rust code at all.
-You can still use rust to register all python functions if you have any security concerns,
-for example when using inputs from other network interfaces.
-The first call of a function will prevent registering further python functions.
+
+| Platform | Supported |
+| -------- | --------- |
+| Linux    | ✓         |
+| Windows  | ✓         |
+| macOS    | ✓         |
+| Android  | not yet   |
+| iOS      | not yet   |
 
 
 You might use this plugin to create simple prototype applications
@@ -18,22 +21,28 @@ and later re-write functions in rust to improve
 performance, add a specific rust library or just call some 
 low-level code.
 
+Android and iOS are possible in theory but I still need to figure out how to 
+cross compile python and PyO3 for iOS and android.
+
+Also, this plugin hasn't been optimized yet for production binaries. 
+The target platform therefore either needs to have libpython installed 
+or you manually need to ship the shared libs together with the installer package.
+
 ## Example app
 
 There is a sample Desktop application for Windows/Linux/MacOS using this plugin and vanilla 
 Javascript in [examples/plain-javascript](https://github.com/marcomq/tauri-plugin-python/tree/main/examples/plain-javascript)
 
 ## Security considerations
-This plugin can make it possible to run arbitrary python code that is injected
-via Javascript code. It is therefore highly recommended to **not make the user
-interface accessible by a network URL**. Otherwise, an XSS vulnerability could 
-be used to run random code on the server.
+Generally, this plugin has been created by "security by default" concept and is
+expected to be nearly as secure as normal tauri applications.
 
-As countermeasuer, the "runPython" command is disabled by default. This function
-must not be enabled, once the UI is accessible by network URL.
-In addition, the "registerFunction" command cannot be called again once the 
-"callFunction" has been called one time. This should prevent re-adding python code, 
-once a user has performed any activity in the UI
-This is not supposed to be a full protection against remote attacks.
+Keep in mind that this plugin can also make it possible to run arbitrary python code
+It is therefore highly recommended to **not make the user interface accessible by a network URL**. 
 
-The plugin should only be used in standalone Desktop, MacOS, IOS or Android mode.
+The "runPython" command is disabled by default via permissions. If enabled, it is possible to 
+inject python code via javascript.
+Also, the function "register" is disabled by default. If enabled, it can 
+add control from javascript which functions can be called.
+Both functions can be enabled during development for rapid prototyping.
+
