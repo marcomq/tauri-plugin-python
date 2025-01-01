@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-python"
-version = "0.2.0"
+version = "0.2.1"
 authors = [ "Marco Mengelkoch" ]
 description = ""
 edition = "2021"

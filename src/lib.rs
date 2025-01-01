@@ -4,8 +4,7 @@
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
 use tauri::{
-    plugin::{Builder, TauriPlugin},
-    Manager, Runtime,
+    plugin::{Builder, TauriPlugin}, AppHandle, Manager, Runtime
 };
 
 pub use models::*;
@@ -22,10 +21,7 @@ mod py_lib;
 
 pub use error::{Error, Result};
 
-#[cfg(desktop)]
-use desktop::Python;
-#[cfg(mobile)]
-use mobile::Python;
+pub struct Python<R: Runtime>(AppHandle<R>);
 
 /// Extensions to [`tauri::App`], [`tauri::AppHandle`] and [`tauri::Window`] to access the python APIs.
 pub trait PythonExt<R: Runtime> {
@@ -59,4 +55,25 @@ pub fn init<R: Runtime>(python_functions: Vec<&'static str>) -> TauriPlugin<R> {
             Ok(())
         })
         .build()
+}
+
+impl<R: Runtime> Python<R> {
+    pub fn run_python(&self, payload: StringRequest) -> crate::Result<StringResponse> {
+        py_lib::run_python(payload)?;
+        Ok(StringResponse { value: "Ok".into() })
+    }
+    pub fn register_function(&self, payload: RegisterRequest) -> crate::Result<StringResponse> {
+        py_lib::register_function(payload)?;
+        Ok(StringResponse { value: "Ok".into() })
+    }
+    pub fn call_function(&self, payload: RunRequest) -> crate::Result<StringResponse> {
+        let py_res = py_lib::call_function(payload)?;
+        Ok(StringResponse {
+            value: py_res.to_string(),
+        })
+    }
+    pub fn read_variable(&self, payload: StringRequest) -> crate::Result<StringResponse> {
+        let py_res = py_lib::read_variable(payload)?;
+        Ok(StringResponse { value: py_res })
+    }
 }
