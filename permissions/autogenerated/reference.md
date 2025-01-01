@@ -2,7 +2,6 @@
 
 Default permissions for the plugin
 
-- `allow-register-function`
 - `allow-call-function`
 - `allow-read-variable`
 

@@ -3,6 +3,8 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
+use std::env;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, ffi::CString, sync::Mutex};
 
@@ -13,23 +15,33 @@ use pyo3::PyErr;
 use pyo3::{marker, types::PyDict, Py, PyAny, PyResult};
 
 use crate::models::*;
-use crate::py_main_import;
 
 lazy_static! {
     static ref INIT_BLOCKED: AtomicBool = false.into();
     static ref FUNCTION_MAP: Mutex<HashMap<String, Py<PyAny>>> = Mutex::new(HashMap::new());
     static ref GLOBALS: Mutex<Py<PyDict>> =
         Mutex::new(marker::Python::with_gil(|py| { PyDict::new(py).into() }));
+} 
+
+fn get_py_path() -> PathBuf {
+    env::current_dir().unwrap().join("src-python")
 }
+
+fn read_main_py<'a>() -> String {
+    let py_file_path = get_py_path().join("main.py");
+    std::fs::read_to_string(py_file_path).unwrap_or_default()
+    // include_str!(concat!(env!("PWD"),  "/src-tauri/src-python/main.py"))
+}
+
 pub fn init_python() -> PyResult<()> {
-    let code = py_main_import::read_at_startup();
+    let code = read_main_py();
     let c_code = CString::new(code).expect("error creating cstring from code");
     marker::Python::with_gil(|py| -> PyResult<()> {
         let syspath = py
             .import("sys")?
             .getattr("path")?
             .downcast_into::<PyList>()?;
-        syspath.insert(0, py_main_import::get_py_path().to_str())?;
+        syspath.insert(0, get_py_path().to_str())?;
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
         py.run(&c_code, Some(&globals), None)
     })
@@ -43,7 +55,10 @@ pub fn run_python(payload: StringRequest) -> PyResult<()> {
     })
 }
 pub fn register_function(payload: RegisterRequest) -> PyResult<()> {
-    let fn_name = payload.python_function_call;
+    register_function_str(payload.python_function_call, payload.number_of_args)
+}
+
+pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> PyResult<()> {
     // TODO, check actual function signature
     if INIT_BLOCKED.load(std::sync::atomic::Ordering::Relaxed) {
         return Err(pyo3::exceptions::PyException::new_err(
@@ -72,7 +87,7 @@ pub fn register_function(payload: RegisterRequest) -> PyResult<()> {
                 &fn_name
             )));
         }
-        if let Some(num_args) = payload.number_of_args {
+        if let Some(num_args) = number_of_args {
             let py_analyze_sig = format!(
                 r#"
 if True:

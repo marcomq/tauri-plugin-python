@@ -8,7 +8,7 @@ fn greet_rust(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![greet_rust])
-        .plugin(tauri_plugin_python::init())
+        .plugin(tauri_plugin_python::init(vec!["greet_python"]))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -4,10 +4,6 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "mkdirJs": "node -e \"const fs = require('fs'); if (!fs.existsSync('src/tauri-plugin-python-api')) { fs.mkdirSync('src/tauri-plugin-python-api');};\"",
-    "copyJs": "node -e \"const fs = require('fs'); const data = fs.readFileSync('node_modules/tauri-plugin-python-api/dist-js/index.iife.js'); fs.writeFileSync('src/tauri-plugin-python-api/index.iife.js', data);\"",
-    "build": "npm run mkdirJs & npm run copyJs",
-    "pretauri": "npm run build",
     "tauri": "tauri"
   },
   "dependencies": {

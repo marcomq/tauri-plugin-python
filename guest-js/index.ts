@@ -37,7 +37,7 @@ export async function registerFunction(
       numberOfArgs
     },
   }).then((r: any) => {
-    registerJsOnly(pythonFunctionCall, jsFunctionName);
+    registerJs(pythonFunctionCall, jsFunctionName);
     return r.value;
   });
 }
@@ -50,7 +50,7 @@ export async function registerFunction(
  *  @param {string} pythonFunctionCall - The python function call, can contain one dot
  *  @param {string} [jsFunctionName] - Name that is used in javscript: "call.jsFunctionName". Must not contain dots.
  */
-export async function registerJsOnly(pythonFunctionCall: string, jsFunctionName?: string) {
+export async function registerJs(pythonFunctionCall: string, jsFunctionName?: string) {
   if (jsFunctionName === undefined) {
     jsFunctionName = pythonFunctionCall.replace(".", "_");
   }

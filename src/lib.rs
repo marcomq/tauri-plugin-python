@@ -19,7 +19,6 @@ mod commands;
 mod error;
 mod models;
 mod py_lib;
-mod py_main_import;
 
 pub use error::{Error, Result};
 
@@ -40,7 +39,7 @@ impl<R: Runtime, T: Manager<R>> crate::PythonExt<R> for T {
 }
 
 /// Initializes the plugin.
-pub fn init<R: Runtime>() -> TauriPlugin<R> {
+pub fn init<R: Runtime>(python_functions: Vec<&'static str>) -> TauriPlugin<R> {
     Builder::new("python")
         .invoke_handler(tauri::generate_handler![
             commands::run_python,
@@ -54,6 +53,9 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             #[cfg(desktop)]
             let python = desktop::init(app, api)?;
             app.manage(python);
+            for function_name in python_functions {
+                py_lib::register_function_str(function_name.into(), None)?;
+            }
             Ok(())
         })
         .build()
