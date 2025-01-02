@@ -34,15 +34,14 @@ There is a sample Desktop application for Windows/Linux/MacOS using this plugin 
 Javascript in [examples/plain-javascript](https://github.com/marcomq/tauri-plugin-python/tree/main/examples/plain-javascript)
 
 ## Security considerations
-Generally, this plugin has been created by "security by default" concept and is
-expected to be nearly as secure as normal tauri applications.
+Generally, this plugin has been created by "security by default" concept. Python functions can onl be called if registered from rust.
 
-Keep in mind that this plugin can also make it possible to run arbitrary python code
+Keep in mind that this plugin can make it possible to run arbitrary python code. 
 It is therefore highly recommended to **not make the user interface accessible by a network URL**. 
 
 The "runPython" command is disabled by default via permissions. If enabled, it is possible to 
 inject python code via javascript.
 Also, the function "register" is disabled by default. If enabled, it can 
-add control from javascript which functions can be called.
+add control from javascript which functions can be called. This avoids to modify rust code when changing or adding python code.
 Both functions can be enabled during development for rapid prototyping.
 
