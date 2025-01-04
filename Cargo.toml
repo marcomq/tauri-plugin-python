@@ -9,12 +9,11 @@ exclude = ["/examples", "/webview-dist", "/webview-src", "/node_modules"]
 links = "tauri-plugin-python"
 
 [dependencies]
-tauri = { version = "2.1.0" }
-serde = "1.0"
+tauri = { version = "2" }
+serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 pyo3 = { version = "0.23.3", features=["auto-initialize", "abi3-py39", "generate-import-lib"] }
 lazy_static = "1.5.0"
 
 [build-dependencies]
-tauri-plugin = { version = "2.0.2", features = ["build"] }
-# pyo3-build-config = "^0.23.3"
+tauri-plugin = { version = "2", features = ["build"] }
