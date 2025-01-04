@@ -2,11 +2,16 @@
 name = "tauri-plugin-python"
 version = "0.2.1"
 authors = [ "Marco Mengelkoch" ]
-description = ""
+description = "A tauri 2 plugin to use python code in the backend."
+keywords = ["rust", "python", "tauri", "gui"]
 edition = "2021"
 rust-version = "1.77.2"
 exclude = ["/examples", "/webview-dist", "/webview-src", "/node_modules"]
 links = "tauri-plugin-python"
+license = "MIT"
+license-file = "LICENSE"
+homepage = https://github.com/marcomq/tauri-plugin-python
+repository = https://github.com/marcomq/tauri-plugin-python
 
 [dependencies]
 tauri = { version = "2" }
