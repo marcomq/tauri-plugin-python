@@ -10,8 +10,8 @@ exclude = ["/examples", "/webview-dist", "/webview-src", "/node_modules"]
 links = "tauri-plugin-python"
 license = "MIT"
 license-file = "LICENSE"
-homepage = https://github.com/marcomq/tauri-plugin-python
-repository = https://github.com/marcomq/tauri-plugin-python
+homepage = "https://github.com/marcomq/tauri-plugin-python"
+repository = "https://github.com/marcomq/tauri-plugin-python"
 
 [dependencies]
 tauri = { version = "2" }
