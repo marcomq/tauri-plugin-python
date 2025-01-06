@@ -33,8 +33,41 @@ or you manually need to ship the shared libs together with the installer package
 There is a sample Desktop application for Windows/Linux/MacOS using this plugin and vanilla 
 Javascript in [examples/plain-javascript](https://github.com/marcomq/tauri-plugin-python/tree/main/examples/plain-javascript)
 
+## Manual plugin installation / usage
+
+These steps assume that you already have a basic tauri application available. Alternatively, you can immediately start with the example application.
+
+- `$ cargo add tauri-plugin-python`
+- `$ npm install tauri-plugin-python-api`
+- modify `permissions:[]` in src-tauri/capabilities/default.json and add "python:default"  
+- add file `src-tauri/src-python/main.py` and add python code, for example:
+```python
+# src-tauri/src-python/main.py
+def greet_python(rust_var)
+    print(rust_var)
+    return str(rust_var) + " from python"
+```
+- add `.plugin(tauri_plugin_python::init(vec!["greet_python"))` to `tauri::Builder::default()`, usually in `src-tauri/src/lib.rs`. This will initialize the plugin and make the python function "greet_python" available from javascript.
+- add javascript for python plugin in the index.html file directly or in your somewhere in your javascript application. For vanilla javascript / iife, the modules can be found in `window.__TAURI__.python`. For modern javascript:
+```javascript
+import { callFunction } from 'tauri-plugin-python-api'
+console.log(await callFunction("greet_python", ["input value"]))
+```
+-> this will call the python function "greet_python" with parameter "input value". Of course, you can just pass in any available javascript value. This should work with "boolean", "integer", "double", "string", "string[]", "double[]" parameter types.
+
+Alternatively, to have more readable code: 
+```javascript
+import { call, registerJs } from 'tauri-plugin-python-api'
+registerJs("greet_python");
+console.log(await call.greet_python("input value"));
+```
+
+## Deployment
+
+You either need to have python installed on the target machine or ship the shared python library with your package. You also may link the python library statically - PyO3 may do this by default if it finds a static python library. In addition, you need to copy the python files so that python files are next to the binary. The file `src-python/main.py` is required for the plugin to work correctly. You may also add additional python files or use a venv environment. The included resources can be configurable in the `tauri.conf.json` file. Check the tauri and PyO3 documentation for additional info. 
+
 ## Security considerations
-Generally, this plugin has been created by "security by default" concept. Python functions can onl be called if registered from rust.
+Generally, this plugin has been created by "security by default" concept. Python functions can only be called if registered from rust.
 
 Keep in mind that this plugin can make it possible to run arbitrary python code. 
 It is therefore highly recommended to **not make the user interface accessible by a network URL**. 
