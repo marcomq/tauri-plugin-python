@@ -15,11 +15,11 @@ and can get called during application workflow.
 | Android  | not yet   |
 | iOS      | not yet   |
 
-
-You might use this plugin to create simple prototype applications
-and later re-write functions in rust to improve
-performance, add a specific rust library or just call some 
-low-level code.
+You can use this plugin for fast prototypes or for production code. 
+It might be possible that you want to use some python library or code that
+is not available for rust yet.
+In case that you want to ship production software packages, you just need 
+to make sure to also ship the python code and python interpreter.
 
 Android and iOS are possible in theory but I still need to figure out how to 
 cross compile python and PyO3 for iOS and android.
@@ -64,17 +64,35 @@ console.log(await call.greet_python("input value"));
 
 ## Deployment
 
-You either need to have python installed on the target machine or ship the shared python library with your package. You also may link the python library statically - PyO3 may do this by default if it finds a static python library. In addition, you need to copy the python files so that python files are next to the binary. The file `src-python/main.py` is required for the plugin to work correctly. You may also add additional python files or use a venv environment. The included resources can be configurable in the `tauri.conf.json` file. Check the tauri and PyO3 documentation for additional info. 
+You either need to have python installed on the target machine or ship the shared 
+python library with your package. You also may link the python library statically - PyO3 
+may do this by default if it finds a static python library. In addition, you need 
+to copy the python files so that python files are next to the binary. 
+
+The file `src-python/main.py` is required for the plugin to work correctly. 
+You may also add additional python files or use a venv environment. 
+The included resources can be configurable in the `tauri.conf.json` file. 
+
+Check the tauri and PyO3 documentation for additional info. 
 
 ## Security considerations
 Generally, this plugin has been created by "security by default" concept. Python functions can only be called if registered from rust.
 
 Keep in mind that this plugin can make it possible to run arbitrary python code. 
-It is therefore highly recommended to **not make the user interface accessible by a network URL**. 
+It is therefore highly recommended to **make sure the user interface is not accessible by a network URL** in production. 
 
 The "runPython" command is disabled by default via permissions. If enabled, it is possible to 
-inject python code via javascript.
+inject python code directly via javascript.
 Also, the function "register" is disabled by default. If enabled, it can 
 add control from javascript which functions can be called. This avoids to modify rust code when changing or adding python code.
 Both functions can be enabled during development for rapid prototyping.
 
+## Alternatives
+If already know that you just want to develop completely in python, you might want to take a look at [pytauri](https://github.com/WSH032/pytauri). 
+It is a different approach to have all tauri functionality completely in python.
+
+This approach here with tauri-plugin-python is more lightweight and it is for you, if you 
+- still want to write rust code
+- already have a tauri application and just need a specific python library
+- just want to simply support rare custom plugins
+- if you want to embed python code directly in your javascript
