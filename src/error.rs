@@ -3,6 +3,7 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
+#[cfg(feature = "pyo3")]
 use pyo3::PyErr;
 use serde::{ser::Serializer, Serialize};
 
@@ -33,16 +34,20 @@ impl From<&str> for Error {
     }
 }
 
-impl From<Error> for PyErr {
-    fn from(error: Error) -> Self {
-        pyo3::exceptions::PyValueError::new_err(error.to_string())
+#[cfg(not(feature = "pyo3"))]
+impl From<rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>> for Error {
+    fn from(error: rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>) -> Self {
+        let msg = format!("{:?}", &error);
+        println!("error: {}", &msg);
+        std::io::Error::new(std::io::ErrorKind::Other, msg).into()
     }
 }
 
+#[cfg(feature = "pyo3")]
 impl From<PyErr> for Error {
     fn from(error: PyErr) -> Self {
         let msg = error.to_string();
-        println!("{}", &msg);
+        println!("error: {}", &msg);
         std::io::Error::new(std::io::ErrorKind::Other, msg).into()
     }
 }

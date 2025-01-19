@@ -19,11 +19,13 @@ tauri::ios_plugin_binding!(init_plugin_python);
 pub fn init<R: Runtime, C: DeserializeOwned>(
     _app: &AppHandle<R>,
     api: PluginApi<R, C>,
-) -> crate::Result<crate::Python<R>> {
+) -> crate::Result<Python<R>> {
     #[cfg(target_os = "android")]
     let handle = api.register_android_plugin("com.plugin.python.application", "ExamplePlugin")?;
     #[cfg(target_os = "ios")]
     let handle = api.register_ios_plugin(init_plugin_python)?;
     py_lib::init_python()?;
-    Ok(crate::Python(handle))
+    Ok(Python(handle))
 }
+
+pub struct Python<R: Runtime>(PluginHandle<R>);

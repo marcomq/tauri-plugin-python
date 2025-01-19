@@ -9,11 +9,12 @@ use tauri::{plugin::PluginApi, AppHandle, Runtime};
 use crate::py_lib;
 
 /// Access to the python plugin APIs.
+pub struct Python<R: Runtime>(AppHandle<R>);
 
 pub fn init<R: Runtime, C: DeserializeOwned>(
     app: &AppHandle<R>,
     _api: PluginApi<R, C>,
-) -> crate::Result<crate::Python<R>> {
-    py_lib::init_python()?;
-    Ok(crate::Python(app.clone()))
+) -> crate::Result<Python<R>> {
+    py_lib::init_python().unwrap();
+    Ok(Python(app.clone()))
 }
