@@ -25,18 +25,7 @@ lazy_static! {
     static ref GLOBALS: rustpython_vm::scope::Scope = create_globals();
 }
 
-fn get_py_path() -> PathBuf {
-    env::current_dir().unwrap().join("src-python")
-}
-
-fn read_main_py<'a>() -> String {
-    let py_file_path = get_py_path().join("main.py");
-    std::fs::read_to_string(py_file_path).unwrap()
-    // include_str!(concat!(env!("PWD"),  "/src-tauri/src-python/main.py"))
-}
-
-pub fn init_python() -> PyResult<()> {
-    let code = read_main_py();
+pub fn init_python(code: String) -> crate::Result<()> {
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         let code_obj = vm
             .compile(
@@ -50,7 +39,7 @@ pub fn init_python() -> PyResult<()> {
     Ok(())
 }
 
-pub fn run_python(payload: StringRequest) -> PyResult<()> {
+pub fn run_python(payload: StringRequest) -> crate::Result<()> {
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         let code_obj = vm
             .compile(
@@ -63,28 +52,34 @@ pub fn run_python(payload: StringRequest) -> PyResult<()> {
     })?;
     Ok(())
 }
-pub fn register_function(payload: RegisterRequest) -> PyResult<()> {
+pub fn register_function(payload: RegisterRequest) -> crate::Result<()> {
     register_function_str(payload.python_function_call, payload.number_of_args)
 }
 
-pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> PyResult<()> {
+pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> crate::Result<()> {
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         GLOBALS.globals.get_item(&fn_name, vm).unwrap();
         FUNCTION_MAP.lock().unwrap().insert(fn_name);
         Ok(())
     })
 }
-pub fn call_function(payload: RunRequest) -> PyResult<String> {
-    // TODO,
+pub fn call_function(payload: RunRequest) -> crate::Result<String> {
+    let function_name = payload.function_name;
+    if FUNCTION_MAP.lock().unwrap().get(&function_name).is_none() {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Function {function_name} has not been registered yet"),
+        ))?;
+    }
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         let posargs: Vec<_> = payload
             .args
             .into_iter()
-            .map(|x| py_serde::deserialize(vm, x).unwrap())
+            .map(|value| py_serde::deserialize(vm, value).unwrap())
             .collect();
         let res = GLOBALS
             .globals
-            .get_item(&payload.function_name, vm)?
+            .get_item(&function_name, vm)?
             .call(posargs, vm)?
             .str(vm)?
             .to_string();
@@ -92,7 +87,7 @@ pub fn call_function(payload: RunRequest) -> PyResult<String> {
     })
 }
 
-pub fn read_variable(payload: StringRequest) -> PyResult<String> {
+pub fn read_variable(payload: StringRequest) -> crate::Result<String> {
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         let res = GLOBALS
             .globals

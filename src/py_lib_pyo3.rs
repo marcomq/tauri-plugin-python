@@ -23,18 +23,7 @@ lazy_static! {
         Mutex::new(marker::Python::with_gil(|py| { PyDict::new(py).into() }));
 }
 
-fn get_py_path() -> PathBuf {
-    env::current_dir().unwrap().join("src-python")
-}
-
-fn read_main_py<'a>() -> String {
-    let py_file_path = get_py_path().join("main.py");
-    std::fs::read_to_string(py_file_path).unwrap_or_default()
-    // include_str!(concat!(env!("PWD"),  "/src-tauri/src-python/main.py"))
-}
-
-pub fn init_python() -> PyResult<()> {
-    let code = read_main_py();
+pub fn init_python(code: String) -> crate::Result<()> {
     let c_code = CString::new(code).expect("error creating cstring from code");
     marker::Python::with_gil(|py| -> PyResult<()> {
         let syspath = py
