@@ -48,7 +48,7 @@ want to call
 - add `"bundle": {"resources": [  "src-python/**/*"],` to `tauri.conf.json` so that python files are bundled with your application
 - add the plugin in your js, so 
    - add `import { callFunction } from 'tauri-plugin-python-api'` 
-   - add `outputEl.textContent = await tauri.python.callFunction("greet_python", [value])` to get the output of the python function `greet_python` with parameter of js variable `value`
+   - add `outputEl.textContent = await callFunction("greet_python", [value])` to get the output of the python function `greet_python` with parameter of js variable `value`
 
 Check the examples for alternative function calls and code sugar.
 
