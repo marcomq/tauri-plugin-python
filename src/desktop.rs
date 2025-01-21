@@ -4,15 +4,21 @@
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
 use serde::de::DeserializeOwned;
-use tauri::{ plugin::PluginApi, AppHandle, Runtime};
+use tauri::{plugin::PluginApi, AppHandle, Runtime};
 
+#[cfg(feature = "pyo3")]
+use crate::py_lib_pyo3 as py_lib;
+#[cfg(not(feature = "pyo3"))]
 use crate::py_lib;
 
 /// Access to the python plugin APIs.
 pub struct Python<R: Runtime>(AppHandle<R>);
 
 fn read_main_py<'a>() -> String {
-    let py_file_path = std::env::current_dir().unwrap().join("src-python").join("main.py");
+    let py_file_path = std::env::current_dir()
+        .unwrap()
+        .join("src-python")
+        .join("main.py");
     std::fs::read_to_string(py_file_path).unwrap_or_default()
     // include_str!(concat!(env!("PWD"),  "/src-tauri/src-python/main.py"))
 }

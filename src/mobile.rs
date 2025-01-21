@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
 use tauri::{
     path::BaseDirectory,
     plugin::{PluginApi, PluginHandle},
-    AppHandle, Runtime, Manager
+    AppHandle, Manager, Runtime,
 };
 
 use crate::models::*;

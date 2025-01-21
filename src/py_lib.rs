@@ -3,16 +3,14 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
-use std::env;
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashSet, sync::Mutex};
 
-use rustpython_vm::{py_serde, PyResult};
+use rustpython_vm::py_serde;
 
 use lazy_static::lazy_static;
 
-use crate::models::*;
+use crate::{models::*, Error};
 
 fn create_globals() -> rustpython_vm::scope::Scope {
     rustpython_vm::Interpreter::without_stdlib(Default::default())
@@ -57,6 +55,9 @@ pub fn register_function(payload: RegisterRequest) -> crate::Result<()> {
 }
 
 pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> crate::Result<()> {
+    if INIT_BLOCKED.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("Cannot register after function called".into());
+    }
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         GLOBALS.globals.get_item(&fn_name, vm).unwrap();
         FUNCTION_MAP.lock().unwrap().insert(fn_name);
@@ -64,12 +65,12 @@ pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> cra
     })
 }
 pub fn call_function(payload: RunRequest) -> crate::Result<String> {
+    INIT_BLOCKED.store(true, std::sync::atomic::Ordering::Relaxed);
     let function_name = payload.function_name;
     if FUNCTION_MAP.lock().unwrap().get(&function_name).is_none() {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!("Function {function_name} has not been registered yet"),
-        ))?;
+        return Err(Error::String(format!(
+            "Function {function_name} has not been registered yet"
+        )));
     }
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         let posargs: Vec<_> = payload

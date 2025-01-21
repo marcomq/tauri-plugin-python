@@ -11,6 +11,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("Error: {0}")]
+    String(String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[cfg(mobile)]
@@ -27,10 +29,9 @@ impl Serialize for Error {
     }
 }
 
-// probably not the best solution - please optimize :)
 impl From<&str> for Error {
     fn from(error: &str) -> Self {
-        std::io::Error::new(std::io::ErrorKind::Other, error).into()
+        Error::String(error.into())
     }
 }
 
@@ -39,7 +40,7 @@ impl From<rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>> for Er
     fn from(error: rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>) -> Self {
         let msg = format!("{:?}", &error);
         println!("error: {}", &msg);
-        std::io::Error::new(std::io::ErrorKind::Other, msg).into()
+        Error::String(msg)
     }
 }
 
@@ -48,7 +49,7 @@ impl From<PyErr> for Error {
     fn from(error: PyErr) -> Self {
         let msg = error.to_string();
         println!("error: {}", &msg);
-        std::io::Error::new(std::io::ErrorKind::Other, msg).into()
+        Error::String(msg)
     }
 }
 

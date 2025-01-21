@@ -31,4 +31,5 @@ serde_json = "1.0.136"
 tauri-plugin = { version = "2", features = ["build"] }
 
 [features]
+# default = ["pyo3"] # enable to use pyo3 instead of rustpython
 pyo3 = ["dep:pyo3"]

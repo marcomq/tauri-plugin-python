@@ -13,8 +13,6 @@ pub struct StringRequest {
 
 #[cfg(feature = "pyo3")]
 #[derive(Debug, Serialize, Deserialize, pyo3::IntoPyObject)]
-#[cfg(not(feature = "pyo3"))]
-#[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum JsMany {
     Bool(bool),

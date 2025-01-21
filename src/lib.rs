@@ -20,6 +20,9 @@ mod models;
 mod py_lib;
 #[cfg(feature = "pyo3")]
 mod py_lib_pyo3;
+#[cfg(feature = "pyo3")]
+use py_lib_pyo3 as py_lib;
+
 
 pub use error::{Error, Result};
 use models::*;
@@ -51,10 +54,8 @@ impl<R: Runtime, T: Manager<R>> crate::PythonExt<R> for T {
         Ok(StringResponse { value: "Ok".into() })
     }
     fn call_function(&self, payload: RunRequest) -> crate::Result<StringResponse> {
-        let py_res = py_lib::call_function(payload)?;
-        Ok(StringResponse {
-            value: py_res.to_string(),
-        })
+        let py_res: String = py_lib::call_function(payload)?.into();
+        Ok(StringResponse { value: py_res })
     }
     fn read_variable(&self, payload: StringRequest) -> crate::Result<StringResponse> {
         let py_res = py_lib::read_variable(payload)?;
