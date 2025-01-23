@@ -3,6 +3,7 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
+#[cfg(feature = "pyo3")]
 use pyo3::PyErr;
 use serde::{ser::Serializer, Serialize};
 
@@ -10,6 +11,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("Error: {0}")]
+    String(String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[cfg(mobile)]
@@ -26,24 +29,27 @@ impl Serialize for Error {
     }
 }
 
-// probably not the best solution - please optimize :)
 impl From<&str> for Error {
     fn from(error: &str) -> Self {
-        std::io::Error::new(std::io::ErrorKind::Other, error).into()
+        Error::String(error.into())
     }
 }
 
-impl From<Error> for PyErr {
-    fn from(error: Error) -> Self {
-        pyo3::exceptions::PyValueError::new_err(error.to_string())
+#[cfg(not(feature = "pyo3"))]
+impl From<rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>> for Error {
+    fn from(error: rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>) -> Self {
+        let msg = format!("{:?}", &error);
+        println!("error: {}", &msg);
+        Error::String(msg)
     }
 }
 
+#[cfg(feature = "pyo3")]
 impl From<PyErr> for Error {
     fn from(error: PyErr) -> Self {
         let msg = error.to_string();
-        println!("{}", &msg);
-        std::io::Error::new(std::io::ErrorKind::Other, msg).into()
+        println!("error: {}", &msg);
+        Error::String(msg)
     }
 }
 

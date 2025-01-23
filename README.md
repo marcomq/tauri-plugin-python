@@ -1,9 +1,17 @@
 # Tauri Plugin Python
 
 This [tauri](https://v2.tauri.app/) plugin is supposed to make it easy to use Python as backend code.
-It uses [PyO3](https://pyo3.rs) to call python from rust.
+It uses [RustPython](https://github.com/RustPython/RustPython) as interpreter to call python from rust.
+RustPython doesn't require python to be installed on the target platform and makes it 
+therefore easy to deploy your production binary. Unfortunately, it has some 
+compatibility issues and is slower than PyO3/CPython. [PyO3](https://pyo3.rs) is also supported as optional Cargo feature for desktop applications. 
+PyO3 uses CPython as interpreter and therefore has a much better compatibility for python libraries.
+It isn't used as default as it requires to make libpython available for the target platform,
+which can be complicated, especially for mobile targets.
+
 The plugin reads by default the file `src-tauri/src-python/main.py` during 
-startup and runs it immediately. Python functions are then registered during initialization 
+startup and runs it immediately. Make sure to add all your python source as tauri resource,
+so it is shipped together with your productioon binaries. Python functions are all registered during plugin initialization 
 and can get called during application workflow.
 
 
@@ -11,31 +19,47 @@ and can get called during application workflow.
 | -------- | --------- |
 | Linux    | ✓         |
 | Windows  | ✓         |
-| macOS    | ✓         |
-| Android  | not yet   |
-| iOS      | not yet   |
+| MacOS    | ✓         |
+| Android  | not yet    |
+| iOS      | ✓*        |
+
+`*` Linux, Windows and MacOS support PyO3 and RustPython as interpreter. Android and IOS
+currently only supports RustPython. 
+Android and iOS might also be able to run PyO3 in theory but require to have CPython
+to be compiled for the target platform. I still need to figure out how to 
+cross compile python and PyO3 for iOS and Android. Ping me if you know how to do that.
 
 You can use this plugin for fast prototypes or for production code. 
 It might be possible that you want to use some python library or code that
 is not available for rust yet.
 In case that you want to ship production software packages, you just need 
-to make sure to also ship the python code and python interpreter.
-
-Android and iOS are possible in theory but I still need to figure out how to 
-cross compile python and PyO3 for iOS and android.
-
-Also, this plugin hasn't been optimized yet for production binaries. 
-The target platform therefore either needs to have libpython installed 
-or you manually need to ship the shared libs together with the installer package.
+to make sure to also ship the python code. If you use PyO3, you also need to ship libpython too.
 
 ## Example app
 
 There is a sample Desktop application for Windows/Linux/MacOS using this plugin and vanilla 
-Javascript in [examples/plain-javascript](https://github.com/marcomq/tauri-plugin-python/tree/main/examples/plain-javascript)
+Javascript in [examples/plain-javascript](https://github.com/marcomq/tauri-plugin-python/tree/main/examples/plain-javascript).
 
-## Manual plugin installation / usage
+
+## Add the plugin to an existing tauri application
+
 
 These steps assume that you already have a basic tauri application available. Alternatively, you can immediately start with the example application.
+
+- run `npm run tauri add python`
+- add `src-tauri/src-python/main.py` and modify it acording to your needs, for example add `def greet_python(intput): return str(input) + " from python"`
+- modify `src-tauri/src/lib.rs` and change `.plugin(tauri_plugin_python::init())` to `.plugin(tauri_plugin_python::init(["greet_python"]))`; make sure you list all python functions you 
+want to call
+- add `"bundle": {"resources": [  "src-python/**/*"],` to `tauri.conf.json` so that python files are bundled with your application
+- add the plugin in your js, so 
+   - add `import { callFunction } from 'tauri-plugin-python-api'` 
+   - add `outputEl.textContent = await callFunction("greet_python", [value])` to get the output of the python function `greet_python` with parameter of js variable `value`
+
+Check the examples for alternative function calls and code sugar.
+
+Tauri events and calling js from python is currently not supported yet. You would need to use rust for that.
+
+## Alternative manual plugin installation
 
 - `$ cargo add tauri-plugin-python`
 - `$ npm install tauri-plugin-python-api`
@@ -76,9 +100,9 @@ The included resources can be configurable in the `tauri.conf.json` file.
 Check the tauri and PyO3 documentation for additional info. 
 
 ## Security considerations
-Generally, this plugin has been created by "security by default" concept. Python functions can only be called if registered from rust.
+Generally, this plugin has been created by "security by default" concept. Python functions can only be called if registered from rust during plugin initialization.
 
-Keep in mind that this plugin can make it possible to run arbitrary python code. 
+Keep in mind that this plugin could make it possible to run arbitrary python code. 
 It is therefore highly recommended to **make sure the user interface is not accessible by a network URL** in production. 
 
 The "runPython" command is disabled by default via permissions. If enabled, it is possible to 

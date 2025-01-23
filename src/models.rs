@@ -3,7 +3,6 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
-use pyo3::IntoPyObject;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -12,7 +11,8 @@ pub struct StringRequest {
     pub value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, IntoPyObject)]
+#[cfg(feature = "pyo3")]
+#[derive(Debug, Serialize, Deserialize, pyo3::IntoPyObject)]
 #[serde(untagged)]
 pub enum JsMany {
     Bool(bool),
@@ -22,6 +22,9 @@ pub enum JsMany {
     StringVec(Vec<String>),
     FloatVec(Vec<f64>),
 }
+
+#[cfg(not(feature = "pyo3"))]
+use serde_json::Value as JsMany;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

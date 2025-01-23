@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-python"
-version = "0.2.1"
+version = "0.3.0"
 authors = [ "Marco Mengelkoch" ]
 description = "A tauri 2 plugin to use python code in the backend."
 keywords = ["rust", "python", "tauri", "gui"]
@@ -16,8 +16,20 @@ repository = "https://github.com/marcomq/tauri-plugin-python"
 tauri = { version = "2" }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
-pyo3 = { version = "0.23.3", features=["auto-initialize", "abi3-py39", "generate-import-lib"] }
 lazy_static = "1.5.0"
+pyo3 = { version = "0.23.3", features=["auto-initialize", "abi3-py39", "generate-import-lib"], optional = true }
+rustpython-pylib = { version = "0.4.0" }
+rustpython-stdlib = { version = "0.4.0", features = ["threading"] }
+rustpython-vm = { version = "0.4.0", features = [
+    "importlib",
+    "serde",
+    "threading",
+] }
+serde_json = "1.0.136"
 
 [build-dependencies]
 tauri-plugin = { version = "2", features = ["build"] }
+
+[features]
+# default = ["pyo3"] # enable to use pyo3 instead of rustpython
+pyo3 = ["dep:pyo3"]
