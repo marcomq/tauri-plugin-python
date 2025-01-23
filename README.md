@@ -20,7 +20,7 @@ and can get called during application workflow.
 | Linux    | ✓         |
 | Windows  | ✓         |
 | MacOS    | ✓         |
-| Android  | ✓*        |
+| Android  | not yet    |
 | iOS      | ✓*        |
 
 `*` Linux, Windows and MacOS support PyO3 and RustPython as interpreter. Android and IOS
