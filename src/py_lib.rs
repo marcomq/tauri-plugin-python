@@ -59,7 +59,10 @@ pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> cra
         return Err("Cannot register after function called".into());
     }
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
-        GLOBALS.globals.get_item(&fn_name, vm).unwrap();
+        GLOBALS
+            .globals
+            .get_item(&fn_name, vm)
+            .expect(&format!("Function {fn_name} not found"));
         FUNCTION_MAP.lock().unwrap().insert(fn_name);
         Ok(())
     })

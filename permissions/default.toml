@@ -1,5 +1,8 @@
 [default]
 description = "Default permissions for the plugin"
-permissions = ["allow-call-function", "allow-read-variable"]
+permissions = [
+    "allow-call-function", 
+    "allow-read-variable"
+]
 # "allow-register-function" is disabled due to the "secure by default" concept. It can be enabled if the UI isn't exposed via network and secured against XSS sufficiently.
 # "allow-run-python" is also disabled as it allows to run random python code. It must not be enabled if the UI is exposed via network.

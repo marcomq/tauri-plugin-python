@@ -22,9 +22,7 @@ lazy_static! {
 }
 
 fn get_py_path() -> std::path::PathBuf {
-    std::env::current_dir()
-        .unwrap()
-        .join("src-python")
+    std::env::current_dir().unwrap().join("src-python")
 }
 
 pub fn init_python(code: String) -> crate::Result<()> {

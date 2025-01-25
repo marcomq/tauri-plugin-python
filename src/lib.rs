@@ -4,8 +4,9 @@
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
 use tauri::{
+    path::BaseDirectory,
     plugin::{Builder, TauriPlugin},
-    Manager, Runtime,
+    AppHandle, Manager, Runtime,
 };
 
 #[cfg(desktop)]
@@ -22,7 +23,6 @@ mod py_lib;
 mod py_lib_pyo3;
 #[cfg(feature = "pyo3")]
 use py_lib_pyo3 as py_lib;
-
 
 pub use error::{Error, Result};
 use models::*;
@@ -63,8 +63,30 @@ impl<R: Runtime, T: Manager<R>> crate::PythonExt<R> for T {
     }
 }
 
+fn read_main_py_from_resources<R: Runtime>(app: &AppHandle<R>) -> String {
+    let py_file_path = app
+        .path()
+        .resolve("src-python/main.py", BaseDirectory::Resource)
+        .unwrap_or_default();
+    std::fs::read_to_string(&py_file_path).unwrap_or_default()
+}
+
+fn read_main_py_from_current_dir() -> String {
+    let py_file_path = std::env::current_dir()
+        .unwrap()
+        .join("src-python")
+        .join("main.py");
+    std::fs::read_to_string(py_file_path).unwrap_or_default()
+    // include_str!(concat!(env!("PWD"),  "/src-tauri/src-python/main.py"))
+}
+
+/// Initializes the plugin with functions
+pub fn init<R: Runtime>() -> TauriPlugin<R> {
+    init_and_register(vec![])
+}
+
 /// Initializes the plugin.
-pub fn init<R: Runtime>(python_functions: Vec<&'static str>) -> TauriPlugin<R> {
+pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> TauriPlugin<R> {
     Builder::new("python")
         .invoke_handler(tauri::generate_handler![
             commands::run_python,
@@ -78,6 +100,18 @@ pub fn init<R: Runtime>(python_functions: Vec<&'static str>) -> TauriPlugin<R> {
             #[cfg(desktop)]
             let python = desktop::init(app, api)?;
             app.manage(python);
+
+            let mut code = read_main_py_from_resources(app);
+            if code.is_empty() {
+                println!(
+                    "Warning: 'src-tauri/main.py' seems not to be registered in 'tauri.conf.json'"
+                );
+                code = read_main_py_from_current_dir();
+            }
+            if code.is_empty() {
+                println!("ERROR: Error reading 'src-tauri/main.py'");
+            }
+            py_lib::init_python(code).unwrap();
             for function_name in python_functions {
                 py_lib::register_function_str(function_name.into(), None).unwrap();
             }

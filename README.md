@@ -48,7 +48,7 @@ These steps assume that you already have a basic tauri application available. Al
 
 - run `npm run tauri add python`
 - add `src-tauri/src-python/main.py` and modify it acording to your needs, for example add `def greet_python(intput): return str(input) + " from python"`
-- modify `src-tauri/src/lib.rs` and change `.plugin(tauri_plugin_python::init())` to `.plugin(tauri_plugin_python::init(["greet_python"]))`; make sure you list all python functions you 
+- modify `src-tauri/src/lib.rs` and change `.plugin(tauri_plugin_python::init())` to `.plugin(tauri_plugin_python::init_and_register(["greet_python"]))`; make sure you list all python functions you 
 want to call
 - add `"bundle": {"resources": [  "src-python/**/*"],` to `tauri.conf.json` so that python files are bundled with your application
 - add the plugin in your js, so 
@@ -71,7 +71,7 @@ def greet_python(rust_var)
     print(rust_var)
     return str(rust_var) + " from python"
 ```
-- add `.plugin(tauri_plugin_python::init(vec!["greet_python"))` to `tauri::Builder::default()`, usually in `src-tauri/src/lib.rs`. This will initialize the plugin and make the python function "greet_python" available from javascript.
+- add `.plugin(tauri_plugin_python::init_and_register(vec!["greet_python"))` to `tauri::Builder::default()`, usually in `src-tauri/src/lib.rs`. This will initialize the plugin and make the python function "greet_python" available from javascript.
 - add javascript for python plugin in the index.html file directly or in your somewhere in your javascript application. For vanilla javascript / iife, the modules can be found in `window.__TAURI__.python`. For modern javascript:
 ```javascript
 import { callFunction } from 'tauri-plugin-python-api'
