@@ -24,16 +24,16 @@ and can get called during application workflow.
 | iOS      | ✓*        |
 
 `*` Linux, Windows and MacOS support PyO3 and RustPython as interpreter. Android and IOS
-currently only supports RustPython. 
-Android and iOS might also be able to run PyO3 in theory but require to have CPython
+currently only support RustPython. 
+Android and iOS might also be able to run with PyO3 in theory but would require to have CPython
 to be compiled for the target platform. I still need to figure out how to 
 cross compile python and PyO3 for iOS and Android. Ping me if you know how to do that.
 
 You can use this plugin for fast prototypes or for production code. 
 It might be possible that you want to use some python library or code that
 is not available for rust yet.
-In case that you want to ship production software packages, you just need 
-to make sure to also ship the python code. If you use PyO3, you also need to ship libpython too.
+In case that you want to ship production software packages, you need 
+to make sure to also ship all your python code. If you use PyO3, you also need to ship libpython too.
 
 ## Example app
 
@@ -44,7 +44,7 @@ Javascript in [examples/plain-javascript](https://github.com/marcomq/tauri-plugi
 ## Add the plugin to an existing tauri application
 
 
-These steps assume that you already have a basic tauri application available. Alternatively, you can immediately start with the example application.
+These steps assume that you already have a basic tauri application available. Alternatively, you can immediately start with the application in "example" directory.
 
 - run `npm run tauri add python`
 - add `src-tauri/src-python/main.py` and modify it acording to your needs, for example add `def greet_python(intput): return str(input) + " from python"`
