@@ -63,6 +63,28 @@ pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> cra
             .globals
             .get_item(&fn_name, vm)
             .expect(&format!("Function {fn_name} not found"));
+
+        if let Some(num_args) = number_of_args {
+            let py_analyze_sig = format!(
+                r#"
+from inspect import signature
+if len(signature({}).parameters) != {}:
+    raise Exception("Function parameters don't match in 'registerFunction'")
+"#,
+                fn_name, num_args
+            );
+
+            let code_obj = vm
+                .compile(
+                    &py_analyze_sig,
+                    rustpython_vm::compiler::Mode::Exec,
+                    "<embedded>".to_owned(),
+                )
+                .map_err(|err| vm.new_syntax_error(&err, Some(&py_analyze_sig)))?;
+            vm.run_code_obj(code_obj, GLOBALS.clone()).expect(&format!(
+                "Number of args doesn't match signature of {fn_name}."
+            ));
+        }
         FUNCTION_MAP.lock().unwrap().insert(fn_name);
         Ok(())
     })

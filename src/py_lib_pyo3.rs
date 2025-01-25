@@ -76,11 +76,10 @@ pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> cra
         if let Some(num_args) = number_of_args {
             let py_analyze_sig = format!(
                 r#"
-if True:
-    from inspect import signature
-    if len(signature({}).parameters) != {}:
-        raise Exception("Function parameters don't match in 'registerFunction'")
-    "#,
+from inspect import signature
+if len(signature({}).parameters) != {}:
+    raise Exception("Function parameters don't match in 'registerFunction'")
+"#,
                 fn_name, num_args
             );
             let code_c = CString::new(py_analyze_sig).expect("CString::new failed");
