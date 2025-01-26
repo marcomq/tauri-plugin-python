@@ -20,14 +20,20 @@ and can get called during application workflow.
 | Linux    | ✓         |
 | Windows  | ✓         |
 | MacOS    | ✓         |
-| Android  | not yet    |
+| Android  | x*         |
 | iOS      | ✓*        |
 
-`*` Linux, Windows and MacOS support PyO3 and RustPython as interpreter. Android and IOS
+
+`x*` There is currently a known issue on tauri+android that prevents reading files.
+https://github.com/tauri-apps/tauri/issues/11823 \
+So python code cannot be read on android right now. Android is going to be supported as soon as reading resource files will be fixed.
+
+`✓*` Linux, Windows and MacOS support PyO3 and RustPython as interpreter. Android and IOS
 currently only support RustPython. 
 Android and iOS might also be able to run with PyO3 in theory but would require to have CPython
 to be compiled for the target platform. I still need to figure out how to 
 cross compile python and PyO3 for iOS and Android. Ping me if you know how to do that.
+
 
 You can use this plugin for fast prototypes or for production code. 
 It might be possible that you want to use some python library or code that
