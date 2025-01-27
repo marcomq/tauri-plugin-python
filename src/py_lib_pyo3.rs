@@ -58,7 +58,7 @@ pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> cra
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
 
         let fn_dot_split: Vec<&str> = fn_name.split(".").collect();
-        let app = globals.get_item(&fn_dot_split[0])?;
+        let app = globals.get_item(fn_dot_split[0])?;
         if app.is_none() {
             return Err(Error::String(format!("{} not found", &fn_name)));
         }
@@ -84,7 +84,7 @@ if len(signature({}).parameters) != {}:
             );
             let code_c = CString::new(py_analyze_sig).expect("CString::new failed");
             py.run(&code_c, Some(&globals), None)
-                .expect(&format!("Could not register '{}'. ", &fn_name));
+                .unwrap_or_else(|_| panic!("Could not register '{}'. ", &fn_name));
         }
         // dbg!("{} was inserted", &fn_name);
         FUNCTION_MAP.lock().unwrap().insert(fn_name, app.into());
@@ -118,7 +118,7 @@ pub fn read_variable(payload: StringRequest) -> crate::Result<String> {
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
 
         let var_dot_split: Vec<&str> = payload.value.split(".").collect();
-        let var = globals.get_item(&var_dot_split[0])?;
+        let var = globals.get_item(var_dot_split[0])?;
         if let Some(var) = var {
             if var_dot_split.len() > 1 {
                 Ok(var.getattr(var_dot_split.get(1).unwrap())?.to_string())

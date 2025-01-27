@@ -85,6 +85,7 @@ if len(signature({}).parameters) != {}:
                 "Number of args doesn't match signature of {fn_name}."
             ));
         }
+        // dbg!(format!("Added '{fn_name}'"));
         FUNCTION_MAP.lock().unwrap().insert(fn_name);
         Ok(())
     })
@@ -117,10 +118,8 @@ pub fn read_variable(payload: StringRequest) -> crate::Result<String> {
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         let res = GLOBALS
             .globals
-            .get_item(&payload.value, vm)
-            .unwrap()
-            .str(vm)
-            .unwrap()
+            .get_item(&payload.value, vm)?
+            .str(vm)?
             .to_string();
         Ok(res)
     })

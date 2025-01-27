@@ -54,7 +54,7 @@ impl<R: Runtime, T: Manager<R>> crate::PythonExt<R> for T {
         Ok(StringResponse { value: "Ok".into() })
     }
     fn call_function(&self, payload: RunRequest) -> crate::Result<StringResponse> {
-        let py_res: String = py_lib::call_function(payload)?.into();
+        let py_res: String = py_lib::call_function(payload)?;
         Ok(StringResponse { value: py_res })
     }
     fn read_variable(&self, payload: StringRequest) -> crate::Result<StringResponse> {
@@ -114,6 +114,17 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
             py_lib::init_python(code).unwrap();
             for function_name in python_functions {
                 py_lib::register_function_str(function_name.into(), None).unwrap();
+            }
+            let functions = py_lib::read_variable(StringRequest {
+                value: "_tauri_plugin_functions".into(),
+            })
+            .unwrap_or_default().replace("'","\"");
+
+            // dbg!(&functions);
+            if let Ok(python_functions) = serde_json::from_str::<Vec<String>>(&functions) {
+                for function_name in python_functions {
+                    py_lib::register_function_str(function_name.into(), None).unwrap();
+                }
             }
             Ok(())
         })

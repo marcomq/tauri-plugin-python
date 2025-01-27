@@ -55,6 +55,6 @@ impl From<PyErr> for Error {
 
 impl From<tauri::Error> for Error {
     fn from(error: tauri::Error) -> Self {
-        error.into()
+        Error::String(error.to_string())
     }
 }

@@ -1,4 +1,5 @@
-# auto loaded on startup
+# File auto loaded on startup
+_tauri_plugin_functions = ["greet_python"] # make these functions callable from UI
 
 counter = 0
 
