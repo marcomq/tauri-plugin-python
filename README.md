@@ -1,6 +1,6 @@
 # Tauri Plugin Python
 
-This [tauri](https://v2.tauri.app/) plugin is supposed to make it easy to use Python as backend code.
+This [tauri](https://v2.tauri.app/) v2 plugin is supposed to make it easy to use Python as backend code.
 It uses [RustPython](https://github.com/RustPython/RustPython) or alternatively [PyO3](https://pyo3.rs) as interpreter to call python from rust.
 
 RustPython doesn't require python to be installed on the target platform and makes it 
