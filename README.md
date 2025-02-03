@@ -1,11 +1,12 @@
 # Tauri Plugin Python
 
 This [tauri](https://v2.tauri.app/) plugin is supposed to make it easy to use Python as backend code.
-It uses [RustPython](https://github.com/RustPython/RustPython) as interpreter to call python from rust.
+It uses [RustPython](https://github.com/RustPython/RustPython) or alternatively [PyO3](https://pyo3.rs) as interpreter to call python from rust.
+
 RustPython doesn't require python to be installed on the target platform and makes it 
 therefore easy to deploy your production binary. Unfortunately, it has some 
-compatibility issues and is slower than PyO3/CPython. [PyO3](https://pyo3.rs) is also supported as optional Cargo feature for desktop applications. 
-PyO3 uses CPython as interpreter and therefore has a much better compatibility for python libraries.
+compatibility issues and is slower than PyO3/CPython. PyO3 is also supported as optional Cargo feature for desktop applications. 
+PyO3 uses CPython as interpreter and therefore has a wide compatibility for available python libraries.
 It isn't used as default as it requires to make libpython available for the target platform,
 which can be complicated, especially for mobile targets.
 
@@ -40,6 +41,14 @@ It might be possible that you want to use some python library or code that
 is not available for rust yet.
 In case that you want to ship production software packages, you need 
 to make sure to also ship all your python code. If you use PyO3, you also need to ship libpython too.
+
+### Switch from RustPython to PyO3
+
+```toml
+# src-tauri/Cargo.toml
+tauri-plugin-python = { version="0.3", , features = ["pyo3"] }
+
+```
 
 ## Example app
 
@@ -109,9 +118,10 @@ The included resources can be configurable in the `tauri.conf.json` file.
 Check the tauri and PyO3 documentation for additional info. 
 
 ## Security considerations
-Generally, this plugin has been created by "security by default" concept. Python functions can only be called if registered from rust during plugin initialization.
+By default, this plugin cannot call arbitrary python code. Python functions can only be called if registered from rust during plugin initialization.
+It may still be possible to read values from python. This can be prevented via additional tauri permissions.
 
-Keep in mind that this plugin could make it possible to run arbitrary python code. 
+Keep in mind that this plugin could make it possible to run arbitrary python code when using all allow permissions. 
 It is therefore highly recommended to **make sure the user interface is not accessible by a network URL** in production. 
 
 The "runPython" command is disabled by default via permissions. If enabled, it is possible to 
