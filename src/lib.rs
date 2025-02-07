@@ -26,6 +26,7 @@ use py_lib_pyo3 as py_lib;
 
 pub use error::{Error, Result};
 use models::*;
+use std::path::PathBuf;
 
 #[cfg(desktop)]
 use desktop::Python;
@@ -63,21 +64,14 @@ impl<R: Runtime, T: Manager<R>> crate::PythonExt<R> for T {
     }
 }
 
-fn read_main_py_from_resources<R: Runtime>(app: &AppHandle<R>) -> String {
-    let py_file_path = app
-        .path()
-        .resolve("src-python/main.py", BaseDirectory::Resource)
-        .unwrap_or_default();
-    std::fs::read_to_string(&py_file_path).unwrap_or_default()
+fn get_resource_dir<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
+    app.path()
+        .resolve("src-python", BaseDirectory::Resource)
+        .unwrap_or_default()
 }
 
-fn read_main_py_from_current_dir() -> String {
-    let py_file_path = std::env::current_dir()
-        .unwrap()
-        .join("src-python")
-        .join("main.py");
-    std::fs::read_to_string(py_file_path).unwrap_or_default()
-    // include_str!(concat!(env!("PWD"),  "/src-tauri/src-python/main.py"))
+fn get_current_dir() -> PathBuf {
+    std::env::current_dir().unwrap().join("src-python")
 }
 
 /// Initializes the plugin with functions
@@ -101,17 +95,19 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
             let python = desktop::init(app, api)?;
             app.manage(python);
 
-            let mut code = read_main_py_from_resources(app);
+            let mut dir = get_resource_dir(app);
+            let mut code = std::fs::read_to_string(&dir.join("main.py")).unwrap_or_default();
             if code.is_empty() {
                 println!(
                     "Warning: 'src-tauri/main.py' seems not to be registered in 'tauri.conf.json'"
                 );
-                code = read_main_py_from_current_dir();
+                dir = get_current_dir();
+                code = std::fs::read_to_string(&dir.join("main.py")).unwrap_or_default();
             }
             if code.is_empty() {
                 println!("ERROR: Error reading 'src-tauri/main.py'");
             }
-            py_lib::init_python(code).unwrap();
+            py_lib::init_python(code, dir).unwrap();
             for function_name in python_functions {
                 py_lib::register_function_str(function_name.into(), None).unwrap();
             }

@@ -3,6 +3,7 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashSet, sync::Mutex};
 
@@ -23,16 +24,22 @@ lazy_static! {
     static ref GLOBALS: rustpython_vm::scope::Scope = create_globals();
 }
 
-pub fn init_python(code: String) -> crate::Result<()> {
+pub fn init_python(code: String, dir: PathBuf) -> crate::Result<()> {
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
-        let code_obj = vm
-            .compile(
-                &code,
-                rustpython_vm::compiler::Mode::Exec,
-                "<embedded>".to_owned(),
-            )
-            .map_err(|err| vm.new_syntax_error(&err, Some(&code)))?;
-        vm.run_code_obj(code_obj, GLOBALS.clone())
+        vm.import("sys", 0).unwrap();
+        let path_import = format!("sys.path.append('{}')", dir.to_str().unwrap());
+        let exec_python = |code: String| {
+            let code_obj = vm
+                .compile(
+                    &code,
+                    rustpython_vm::compiler::Mode::Exec,
+                    "<embedded>".to_owned(),
+                )
+                .map_err(|err| vm.new_syntax_error(&err, Some(&code)))?;
+            vm.run_code_obj(code_obj, GLOBALS.clone())
+        };
+        exec_python(path_import)?;
+        exec_python(code)
     })?;
     Ok(())
 }
