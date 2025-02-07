@@ -118,12 +118,13 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
             let functions = py_lib::read_variable(StringRequest {
                 value: "_tauri_plugin_functions".into(),
             })
-            .unwrap_or_default().replace("'","\"");
+            .unwrap_or_default()
+            .replace("'", "\""); // python arrays are serialized usings ' instead of "
 
             // dbg!(&functions);
             if let Ok(python_functions) = serde_json::from_str::<Vec<String>>(&functions) {
                 for function_name in python_functions {
-                    py_lib::register_function_str(function_name.into(), None).unwrap();
+                    py_lib::register_function_str(function_name, None).unwrap();
                 }
             }
             Ok(())

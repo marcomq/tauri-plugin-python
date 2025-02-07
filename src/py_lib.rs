@@ -54,15 +54,19 @@ pub fn register_function(payload: RegisterRequest) -> crate::Result<()> {
     register_function_str(payload.python_function_call, payload.number_of_args)
 }
 
-pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> crate::Result<()> {
+pub fn register_function_str(
+    function_name: String,
+    number_of_args: Option<u8>,
+) -> crate::Result<()> {
     if INIT_BLOCKED.load(std::sync::atomic::Ordering::Relaxed) {
         return Err("Cannot register after function called".into());
     }
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
-        GLOBALS
-            .globals
-            .get_item(&fn_name, vm)
-            .expect(&format!("Function {fn_name} not found"));
+        let var_dot_split: Vec<&str> = function_name.split(".").collect();
+        let func = GLOBALS.globals.get_item(var_dot_split[0], vm)?;
+        if var_dot_split.len() > 1 {
+            func.get_item(var_dot_split[1], vm)?;
+        }
 
         if let Some(num_args) = number_of_args {
             let py_analyze_sig = format!(
@@ -71,7 +75,7 @@ from inspect import signature
 if len(signature({}).parameters) != {}:
     raise Exception("Function parameters don't match in 'registerFunction'")
 "#,
-                fn_name, num_args
+                function_name, num_args
             );
 
             let code_obj = vm
@@ -81,12 +85,13 @@ if len(signature({}).parameters) != {}:
                     "<embedded>".to_owned(),
                 )
                 .map_err(|err| vm.new_syntax_error(&err, Some(&py_analyze_sig)))?;
-            vm.run_code_obj(code_obj, GLOBALS.clone()).expect(&format!(
-                "Number of args doesn't match signature of {fn_name}."
-            ));
+            vm.run_code_obj(code_obj, GLOBALS.clone())
+                .unwrap_or_else(|_| {
+                    panic!("Number of args doesn't match signature of {function_name}.")
+                });
         }
-        // dbg!(format!("Added '{fn_name}'"));
-        FUNCTION_MAP.lock().unwrap().insert(fn_name);
+        // dbg!(format!("Added '{function_name}'"));
+        FUNCTION_MAP.lock().unwrap().insert(function_name);
         Ok(())
     })
 }
@@ -104,23 +109,29 @@ pub fn call_function(payload: RunRequest) -> crate::Result<String> {
             .into_iter()
             .map(|value| py_serde::deserialize(vm, value).unwrap())
             .collect();
-        let res = GLOBALS
-            .globals
-            .get_item(&function_name, vm)?
-            .call(posargs, vm)?
-            .str(vm)?
-            .to_string();
-        Ok(res)
+        let var_dot_split: Vec<&str> = function_name.split(".").collect();
+        let func = GLOBALS.globals.get_item(var_dot_split[0], vm)?;
+        Ok(if var_dot_split.len() > 1 {
+            func.get_item(var_dot_split[1], vm)?
+        } else {
+            func
+        }
+        .call(posargs, vm)?
+        .str(vm)?
+        .to_string())
     })
 }
 
 pub fn read_variable(payload: StringRequest) -> crate::Result<String> {
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
-        let res = GLOBALS
-            .globals
-            .get_item(&payload.value, vm)?
-            .str(vm)?
-            .to_string();
-        Ok(res)
+        let var_dot_split: Vec<&str> = payload.value.split(".").collect();
+        let var = GLOBALS.globals.get_item(var_dot_split[0], vm)?;
+        Ok(if var_dot_split.len() > 1 {
+            var.get_item(var_dot_split[1], vm)?
+        } else {
+            var
+        }
+        .str(vm)?
+        .to_string())
     })
 }
