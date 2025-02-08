@@ -3,7 +3,6 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashSet, sync::Mutex};
 
@@ -22,26 +21,6 @@ lazy_static! {
     static ref INIT_BLOCKED: AtomicBool = false.into();
     static ref FUNCTION_MAP: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
     static ref GLOBALS: rustpython_vm::scope::Scope = create_globals();
-}
-
-pub fn init_python(code: String, dir: PathBuf) -> crate::Result<()> {
-    rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
-        vm.import("sys", 0).unwrap();
-        let path_import = format!("sys.path.append('{}')", dir.to_str().unwrap());
-        let exec_python = |code: String| {
-            let code_obj = vm
-                .compile(
-                    &code,
-                    rustpython_vm::compiler::Mode::Exec,
-                    "<embedded>".to_owned(),
-                )
-                .map_err(|err| vm.new_syntax_error(&err, Some(&code)))?;
-            vm.run_code_obj(code_obj, GLOBALS.clone())
-        };
-        exec_python(path_import)?;
-        exec_python(code)
-    })?;
-    Ok(())
 }
 
 pub fn run_python(payload: StringRequest) -> crate::Result<()> {
@@ -70,9 +49,13 @@ pub fn register_function_str(
     }
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         let var_dot_split: Vec<&str> = function_name.split(".").collect();
-        let func = GLOBALS.globals.get_item(var_dot_split[0], vm)?;
+        let func = GLOBALS.globals.get_item(var_dot_split[0], vm).unwrap_or_else(|_| {
+                panic!("Cannot find '{}' in globals", var_dot_split[0]);
+            });
         if var_dot_split.len() > 1 {
-            func.get_item(var_dot_split[1], vm)?;
+            func.get_attr(&vm.ctx.new_str(var_dot_split[1]), vm).unwrap_or_else(|_| {
+                panic!("Cannot find sub function '{}' in '{}'", var_dot_split[1], var_dot_split[0]);
+            });
         }
 
         if let Some(num_args) = number_of_args {
@@ -119,7 +102,7 @@ pub fn call_function(payload: RunRequest) -> crate::Result<String> {
         let var_dot_split: Vec<&str> = function_name.split(".").collect();
         let func = GLOBALS.globals.get_item(var_dot_split[0], vm)?;
         Ok(if var_dot_split.len() > 1 {
-            func.get_item(var_dot_split[1], vm)?
+            func.get_attr(&vm.ctx.new_str(var_dot_split[1]), vm)?
         } else {
             func
         }
@@ -134,7 +117,7 @@ pub fn read_variable(payload: StringRequest) -> crate::Result<String> {
         let var_dot_split: Vec<&str> = payload.value.split(".").collect();
         let var = GLOBALS.globals.get_item(var_dot_split[0], vm)?;
         Ok(if var_dot_split.len() > 1 {
-            var.get_item(var_dot_split[1], vm)?
+            var.get_attr(&vm.ctx.new_str(var_dot_split[1]), vm)?
         } else {
             var
         }

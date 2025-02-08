@@ -3,7 +3,6 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, ffi::CString, sync::Mutex};
 
@@ -20,19 +19,6 @@ lazy_static! {
     static ref FUNCTION_MAP: Mutex<HashMap<String, Py<PyAny>>> = Mutex::new(HashMap::new());
     static ref GLOBALS: Mutex<Py<PyDict>> =
         Mutex::new(marker::Python::with_gil(|py| { PyDict::new(py).into() }));
-}
-
-pub fn init_python(code: String, dir: PathBuf) -> crate::Result<()> {
-    let c_code = CString::new(code).expect("error creating cstring from code");
-    Ok(marker::Python::with_gil(|py| -> PyResult<()> {
-        let syspath = py
-            .import("sys")?
-            .getattr("path")?
-            .downcast_into::<PyList>()?;
-        syspath.insert(0, dir.to_str())?;
-        let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
-        py.run(&c_code, Some(&globals), None)
-    })?)
 }
 
 pub fn run_python(payload: StringRequest) -> crate::Result<()> {
