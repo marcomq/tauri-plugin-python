@@ -86,7 +86,7 @@ var __TAURI_PYTHON_PLUGIN_API__ = (function (exports) {
      */
     async function registerJs(pythonFunctionCall, jsFunctionName) {
         if (jsFunctionName === undefined) {
-            jsFunctionName = pythonFunctionCall.replace(".", "_");
+            jsFunctionName = pythonFunctionCall.replaceAll(".", "_");
         }
         call[jsFunctionName] = function (...args) { return callFunction(pythonFunctionCall, args); };
     }

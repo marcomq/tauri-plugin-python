@@ -45,7 +45,7 @@ async function registerFunction(pythonFunctionCall, numberOfArgs, jsFunctionName
  */
 async function registerJs(pythonFunctionCall, jsFunctionName) {
     if (jsFunctionName === undefined) {
-        jsFunctionName = pythonFunctionCall.replace(".", "_");
+        jsFunctionName = pythonFunctionCall.replaceAll(".", "_");
     }
     call[jsFunctionName] = function (...args) { return callFunction(pythonFunctionCall, args); };
 }
