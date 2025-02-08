@@ -26,7 +26,7 @@ use py_lib_pyo3 as py_lib;
 
 pub use error::{Error, Result};
 use models::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[cfg(desktop)]
 use desktop::Python;
@@ -80,14 +80,19 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 }
 
 fn init_python(code: String, dir: PathBuf) {
+    let mut sys_pyth_dir = format!("sys.path.append('{}')", dir.to_str().unwrap());
+    let venv_dir = dir.join(".venv");
+    if Path::exists(venv_dir.as_path()) {
+        sys_pyth_dir += "\n";
+        sys_pyth_dir += &format!("sys.path.append('{}')", venv_dir.to_str().unwrap());
+    }
     let path_import_and_code = format!(
         r#"
 import sys
-sys.path.append('{}')
+{}
 {}
 "#,
-        dir.to_str().unwrap(),
-        code
+        sys_pyth_dir, code
     );
     py_lib::run_python(StringRequest {
         value: path_import_and_code,
