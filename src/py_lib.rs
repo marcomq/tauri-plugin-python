@@ -49,13 +49,25 @@ pub fn register_function_str(
     }
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         let var_dot_split: Vec<&str> = function_name.split(".").collect();
-        let func = GLOBALS.globals.get_item(var_dot_split[0], vm).unwrap_or_else(|_| {
+        let func = GLOBALS
+            .globals
+            .get_item(var_dot_split[0], vm)
+            .unwrap_or_else(|_| {
                 panic!("Cannot find '{}' in globals", var_dot_split[0]);
             });
-        if var_dot_split.len() > 1 {
-            func.get_attr(&vm.ctx.new_str(var_dot_split[1]), vm).unwrap_or_else(|_| {
-                panic!("Cannot find sub function '{}' in '{}'", var_dot_split[1], var_dot_split[0]);
-            });
+        if var_dot_split.len() > 2 {
+            func.get_attr(&vm.ctx.new_str(var_dot_split[1]), vm)
+                .unwrap()
+                .get_attr(&vm.ctx.new_str(var_dot_split[2]), vm)
+                .unwrap();
+        } else if var_dot_split.len() > 1 {
+            func.get_attr(&vm.ctx.new_str(var_dot_split[1]), vm)
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Cannot find sub function '{}' in '{}'",
+                        var_dot_split[1], var_dot_split[0]
+                    );
+                });
         }
 
         if let Some(num_args) = number_of_args {
@@ -101,7 +113,10 @@ pub fn call_function(payload: RunRequest) -> crate::Result<String> {
             .collect();
         let var_dot_split: Vec<&str> = function_name.split(".").collect();
         let func = GLOBALS.globals.get_item(var_dot_split[0], vm)?;
-        Ok(if var_dot_split.len() > 1 {
+        Ok(if var_dot_split.len() > 2 {
+            func.get_attr(&vm.ctx.new_str(var_dot_split[1]), vm)?
+                .get_attr(&vm.ctx.new_str(var_dot_split[2]), vm)?
+        } else if var_dot_split.len() > 1 {
             func.get_attr(&vm.ctx.new_str(var_dot_split[1]), vm)?
         } else {
             func
@@ -116,7 +131,10 @@ pub fn read_variable(payload: StringRequest) -> crate::Result<String> {
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         let var_dot_split: Vec<&str> = payload.value.split(".").collect();
         let var = GLOBALS.globals.get_item(var_dot_split[0], vm)?;
-        Ok(if var_dot_split.len() > 1 {
+        Ok(if var_dot_split.len() > 2 {
+            var.get_attr(&vm.ctx.new_str(var_dot_split[1]), vm)?
+                .get_attr(&vm.ctx.new_str(var_dot_split[2]), vm)?
+        } else if var_dot_split.len() > 1 {
             var.get_attr(&vm.ctx.new_str(var_dot_split[1]), vm)?
         } else {
             var

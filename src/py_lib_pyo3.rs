@@ -8,9 +8,9 @@ use std::{collections::HashMap, ffi::CString, sync::Mutex};
 
 use lazy_static::lazy_static;
 use pyo3::exceptions::PyBaseException;
-use pyo3::types::{PyAnyMethods, PyDictMethods, PyList, PyListMethods};
+use pyo3::types::{PyAnyMethods, PyDictMethods};
 use pyo3::PyErr;
-use pyo3::{marker, types::PyDict, Py, PyAny, PyResult};
+use pyo3::{marker, types::PyDict, Py, PyAny};
 
 use crate::{models::*, Error};
 
@@ -45,7 +45,11 @@ pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> cra
         if app.is_none() {
             return Err(Error::String(format!("{} not found", &fn_name)));
         }
-        let app = if fn_dot_split.len() > 1 {
+        let app = if fn_dot_split.len() > 2 {
+            app.unwrap()
+                .getattr(fn_dot_split.get(1).unwrap())?
+                .getattr(fn_dot_split.get(2).unwrap())?
+        } else if fn_dot_split.len() > 1 {
             app.unwrap().getattr(fn_dot_split.get(1).unwrap())?
         } else {
             app.unwrap()
@@ -103,11 +107,15 @@ pub fn read_variable(payload: StringRequest) -> crate::Result<String> {
         let var_dot_split: Vec<&str> = payload.value.split(".").collect();
         let var = globals.get_item(var_dot_split[0])?;
         if let Some(var) = var {
-            if var_dot_split.len() > 1 {
-                Ok(var.getattr(var_dot_split.get(1).unwrap())?.to_string())
+            Ok(if var_dot_split.len() > 2 {
+                var.getattr(var_dot_split.get(1).unwrap())?
+                    .getattr(var_dot_split.get(2).unwrap())?
+            } else if var_dot_split.len() > 1 {
+                var.getattr(var_dot_split.get(1).unwrap())?
             } else {
-                Ok(var.to_string())
+                var
             }
+            .to_string())
         } else {
             Err(Error::String(format!("{} not set", &payload.value)))
         }

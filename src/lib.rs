@@ -112,13 +112,13 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
             app.manage(python);
 
             let mut dir = get_resource_dir(app);
-            let mut code = std::fs::read_to_string(&dir.join("main.py")).unwrap_or_default();
+            let mut code = std::fs::read_to_string(dir.join("main.py")).unwrap_or_default();
             if code.is_empty() {
                 println!(
                     "Warning: 'src-tauri/main.py' seems not to be registered in 'tauri.conf.json'"
                 );
                 dir = get_current_dir();
-                code = std::fs::read_to_string(&dir.join("main.py")).unwrap_or_default();
+                code = std::fs::read_to_string(dir.join("main.py")).unwrap_or_default();
             }
             if code.is_empty() {
                 println!("ERROR: Error reading 'src-tauri/main.py'");

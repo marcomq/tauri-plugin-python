@@ -52,7 +52,7 @@ export async function registerFunction(
  */
 export async function registerJs(pythonFunctionCall: string, jsFunctionName?: string) {
   if (jsFunctionName === undefined) {
-    jsFunctionName = pythonFunctionCall.replace(".", "_");
+    jsFunctionName = pythonFunctionCall.replaceAll(".", "_");
   }
   call[jsFunctionName] = function (...args: any[]) { return callFunction(pythonFunctionCall, args) };
 }
