@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-python"
-version = "0.3.1"
+version = "0.3.2"
 authors = [ "Marco Mengelkoch" ]
 description = "A tauri 2 plugin to use python code in the backend."
 keywords = ["rust", "python", "tauri", "gui"]
