@@ -80,16 +80,20 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 }
 
 fn init_python(code: String, dir: PathBuf) {
+    #[allow(unused_mut)]
     let mut sys_pyth_dir = format!("sys.path.append('{}')", dir.to_str().unwrap());
-    let venv_dir = dir.join(".venv").join("lib");
-    if Path::exists(venv_dir.as_path()) {
-        if let Ok(py_dir) = venv_dir.read_dir() {
-            for entry in py_dir.flatten() {
-                let site_packages = entry.path().join("site-packages"); 
-                if Path::exists(site_packages.as_path()) { // use first site-packages found, ignoring version
-                    sys_pyth_dir += "\n";
-                    sys_pyth_dir += &format!("sys.path.append('{}')", site_packages.to_str().unwrap());
-                    break;
+    #[cfg(feature = "venv")]
+    {
+        let venv_dir = dir.join(".venv").join("lib");
+        if Path::exists(venv_dir.as_path()) {
+            if let Ok(py_dir) = venv_dir.read_dir() {
+                for entry in py_dir.flatten() {
+                    let site_packages = entry.path().join("site-packages"); 
+                    if Path::exists(site_packages.as_path()) { // use first site-packages found, ignoring version
+                        sys_pyth_dir += "\n";
+                        sys_pyth_dir += &format!("sys.path.append('{}')", site_packages.to_str().unwrap());
+                        break;
+                    }
                 }
             }
         }

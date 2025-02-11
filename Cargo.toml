@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-python"
-version = "0.3.3"
+version = "0.3.4"
 authors = [ "Marco Mengelkoch" ]
 description = "A tauri 2 plugin to use python code in the backend."
 keywords = ["rust", "python", "tauri", "gui"]
@@ -31,5 +31,7 @@ serde_json = "1.0.136"
 tauri-plugin = { version = "2", features = ["build"] }
 
 [features]
-# default = ["pyo3"] # enable to use pyo3 instead of rustpython
+venv = []
+default = ["venv"] # auto load src-python/.venv
+# default = ["venv", "pyo3"] # enable to use pyo3 instead of rustpython
 pyo3 = ["dep:pyo3"]
