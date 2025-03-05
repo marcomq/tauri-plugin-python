@@ -88,28 +88,29 @@ fn init_python(code: String, dir: PathBuf) {
         if Path::exists(venv_dir.as_path()) {
             if let Ok(py_dir) = venv_dir.read_dir() {
                 for entry in py_dir.flatten() {
-                    let site_packages = entry.path().join("site-packages"); 
-                    if Path::exists(site_packages.as_path()) { // use first site-packages found, ignoring version
+                    let site_packages = entry.path().join("site-packages");
+                    // use first folder with site-packages for venv, ignore venv version
+                    if Path::exists(site_packages.as_path()) {
                         sys_pyth_dir += "\n";
-                        sys_pyth_dir += &format!("sys.path.append('{}')", site_packages.to_str().unwrap());
+                        sys_pyth_dir +=
+                            &format!("sys.path.append('{}')", site_packages.to_str().unwrap());
                         break;
                     }
                 }
             }
         }
     }
-    let path_import_and_code = format!(
+    let path_import = format!(
         r#"
 import sys
 {}
-{}
 "#,
-        sys_pyth_dir, code
+        sys_pyth_dir
     );
-    py_lib::run_python(StringRequest {
-        value: path_import_and_code,
-    })
-    .unwrap_or_else(|e| panic!("Error '{e}' initializing main.py."));
+    py_lib::run_python_internal(path_import, "<tauri_init>".into())
+        .unwrap_or_else(|e| panic!("Error '{e}' initializing sys_import"));
+    py_lib::run_python_internal(code, "main.py".into())
+        .unwrap_or_else(|e| panic!("Error '{e}' initializing main.py."));
 }
 
 /// Initializes the plugin.

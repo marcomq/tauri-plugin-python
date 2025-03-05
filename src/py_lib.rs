@@ -24,18 +24,19 @@ lazy_static! {
 }
 
 pub fn run_python(payload: StringRequest) -> crate::Result<()> {
+    run_python_internal(payload.value, "<embedded>".into())
+}
+
+pub fn run_python_internal(code: String, filename: String) -> crate::Result<()> {
     rustpython_vm::Interpreter::without_stdlib(Default::default()).enter(|vm| {
         let code_obj = vm
-            .compile(
-                &payload.value,
-                rustpython_vm::compiler::Mode::Exec,
-                "<embedded>".to_owned(),
-            )
-            .map_err(|err| vm.new_syntax_error(&err, Some(&payload.value)))?;
+            .compile(&code, rustpython_vm::compiler::Mode::Exec, filename)
+            .map_err(|err| vm.new_syntax_error(&err, Some(&code)))?;
         vm.run_code_obj(code_obj, GLOBALS.clone())
     })?;
     Ok(())
 }
+
 pub fn register_function(payload: RegisterRequest) -> crate::Result<()> {
     register_function_str(payload.python_function_call, payload.number_of_args)
 }

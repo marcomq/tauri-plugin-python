@@ -12,7 +12,7 @@ which can be complicated, especially for mobile targets.
 
 The plugin reads by default the file `src-tauri/src-python/main.py` during 
 startup and runs it immediately. Make sure to add all your python source as tauri resource,
-so it is shipped together with your productioon binaries. Python functions are all registered during plugin initialization 
+so it is shipped together with your production binaries. Python functions are all registered during plugin initialization 
 and can get called during application workflow.
 
 
@@ -58,11 +58,10 @@ Javascript in [examples/plain-javascript](https://github.com/marcomq/tauri-plugi
 
 ## Add the plugin to an existing tauri application
 
-
 These steps assume that you already have a basic tauri application available. Alternatively, you can immediately start with the application in "example" directory.
 
 - run `npm run tauri add python`
-- add `src-tauri/src-python/main.py` and modify it acording to your needs, for example add 
+- add `src-tauri/src-python/main.py` and modify it according to your needs, for example add 
 ```python
 # src-tauri/src-python/main.py
 _tauri_plugin_functions = ["greet_python"] # make "greet_python" callable from UI

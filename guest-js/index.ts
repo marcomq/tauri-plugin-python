@@ -1,7 +1,7 @@
 /** Tauri Python Plugin
  * © Copyright 2024, by Marco Mengelkoch
  * Licensed under MIT License, see License file for more details
- * git clonehttps://github.com/marcomq/tauri-plugin-python
+ * git clone https://github.com/marcomq/tauri-plugin-python
 **/
 
 import { invoke } from '@tauri-apps/api/core'
@@ -19,10 +19,10 @@ export async function runPython(code: string): Promise<string> {
 }
 
 /** 
- * Regeisters function on server and makes it available via `call.{jsFunctionName}`
+ * Registers function on server and makes it available via `call.{jsFunctionName}`
  *  @param {string} pythonFunctionCall - The python function call, can contain one dot
- *  @param {number} [numberOfArgs] - Number of arguments, used for validation in pythons, use -1 to ignore this value
- *  @param {string} [jsFunctionName] - Name that is used in javscript: "call.jsFunctionName". Must not contain dots.
+ *  @param {number} [numberOfArgs] - Number of arguments, used for validation in python, use -1 to ignore this value
+ *  @param {string} [jsFunctionName] - Name that is used in javascript: "call.jsFunctionName". Must not contain dots.
  */
 export async function registerFunction(
   pythonFunctionCall: string,
@@ -42,13 +42,11 @@ export async function registerFunction(
   });
 }
 
-
-
 /** 
  * No server invokation - assumes that function has already been registered server-side
  * Makes function available as `call.{jsFunctionName}`
  *  @param {string} pythonFunctionCall - The python function call, can contain one dot
- *  @param {string} [jsFunctionName] - Name that is used in javscript: "call.jsFunctionName". Must not contain dots.
+ *  @param {string} [jsFunctionName] - Name that is used in javascript: "call.jsFunctionName". Must not contain dots.
  */
 export async function registerJs(pythonFunctionCall: string, jsFunctionName?: string) {
   if (jsFunctionName === undefined) {

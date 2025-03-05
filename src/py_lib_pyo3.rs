@@ -22,9 +22,13 @@ lazy_static! {
 }
 
 pub fn run_python(payload: StringRequest) -> crate::Result<()> {
+    run_python_internal(payload.value, "<embedded>".into())
+}
+
+pub fn run_python_internal(code: String, _filename: String) -> crate::Result<()> {
     marker::Python::with_gil(|py| -> crate::Result<()> {
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
-        let c_code = CString::new(payload.value).expect("CString::new failed");
+        let c_code = CString::new(code).expect("CString::new failed");
         Ok(py.run(&c_code, Some(&globals), None)?)
     })
 }

@@ -40,6 +40,17 @@ impl From<rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>> for Er
     fn from(error: rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>) -> Self {
         let msg = format!("{:?}", &error);
         println!("error: {}", &msg);
+        if let Some(tb) = error.traceback() {
+            println!("Traceback (most recent call last):");
+            for trace in tb.iter() {
+                println!(
+                    "  File \"{}\", line {}, in {}",
+                    trace.frame.code.source_path,
+                    trace.lineno.to_usize(),
+                    trace.frame.code.obj_name
+                );
+            }
+        }
         Error::String(msg)
     }
 }
