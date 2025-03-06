@@ -43,10 +43,15 @@ impl From<rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>> for Er
         if let Some(tb) = error.traceback() {
             println!("Traceback (most recent call last):");
             for trace in tb.iter() {
+                let file = trace.frame.code.source_path.as_str();
+                let original_line = trace.lineno.to_usize();
+                let line = if file == "main.py" {
+                    original_line - 2 // sys.path import has 2 additional lines
+                } else {
+                    original_line
+                };
                 println!(
-                    "  File \"{}\", line {}, in {}",
-                    trace.frame.code.source_path,
-                    trace.lineno.to_usize(),
+                    "  File \"{file}\", line {line}, in {}",
                     trace.frame.code.obj_name
                 );
             }

@@ -81,7 +81,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 
 fn init_python(code: String, dir: PathBuf) {
     #[allow(unused_mut)]
-    let mut sys_pyth_dir = format!("sys.path.append('{}')", dir.to_str().unwrap());
+    let mut sys_pyth_dir = vec![format!("\"{}\"", dir.to_string_lossy())];
     #[cfg(feature = "venv")]
     {
         let venv_dir = dir.join(".venv").join("lib");
@@ -91,9 +91,7 @@ fn init_python(code: String, dir: PathBuf) {
                     let site_packages = entry.path().join("site-packages");
                     // use first folder with site-packages for venv, ignore venv version
                     if Path::exists(site_packages.as_path()) {
-                        sys_pyth_dir += "\n";
-                        sys_pyth_dir +=
-                            &format!("sys.path.append('{}')", site_packages.to_str().unwrap());
+                        sys_pyth_dir.push(format!("\"{}\"", site_packages.to_string_lossy()));
                         break;
                     }
                 }
@@ -101,16 +99,15 @@ fn init_python(code: String, dir: PathBuf) {
         }
     }
     let path_import = format!(
-        r#"
-import sys
+        r#"import sys
+sys.path = sys.path + [{}]
 {}
 "#,
-        sys_pyth_dir
+        sys_pyth_dir.join(", "),
+        code
     );
-    py_lib::run_python_internal(path_import, "<tauri_init>".into())
-        .unwrap_or_else(|e| panic!("Error '{e}' initializing sys_import"));
-    py_lib::run_python_internal(code, "main.py".into())
-        .unwrap_or_else(|e| panic!("Error '{e}' initializing main.py."));
+    py_lib::run_python_internal(path_import, "main.py".into())
+        .unwrap_or_else(|e| panic!("Error '{e}' initializing main.py"));
 }
 
 /// Initializes the plugin.
