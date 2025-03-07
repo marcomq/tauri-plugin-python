@@ -4,7 +4,7 @@
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
 #[cfg(feature = "pyo3")]
-use pyo3::PyErr;
+use pyo3::{prelude::*, PyErr};
 use serde::{ser::Serializer, Serialize};
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -63,9 +63,24 @@ impl From<rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>> for Er
 #[cfg(feature = "pyo3")]
 impl From<PyErr> for Error {
     fn from(error: PyErr) -> Self {
-        let msg = error.to_string();
-        println!("error: {}", &msg);
-        Error::String(msg)
+        let error_msg = match pyo3::Python::with_gil(|py| {
+            let traceback_module = py.import("traceback")?;
+            let traceback_object = error
+                .traceback(py)
+                .ok_or(pyo3::exceptions::PyWarning::new_err("No traceback found."))
+                .inspect(|r| println!("DEBUG: traceback extracted {:?}", r))?;
+            let format_traceback = traceback_module.getattr("format_tb")?;
+            format_traceback
+                .call1((traceback_object,))
+                .and_then(|r| r.extract::<Vec<String>>())
+        }) {
+            Ok(formatted) => formatted.join(""),
+            Err(_) => {
+                error.to_string() // Fall back to simple error message
+            }
+        };
+
+        Error::String(error_msg)
     }
 }
 
