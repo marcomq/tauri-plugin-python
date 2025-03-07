@@ -67,8 +67,7 @@ impl From<PyErr> for Error {
             let traceback_module = py.import("traceback")?;
             let traceback_object = error
                 .traceback(py)
-                .ok_or(pyo3::exceptions::PyWarning::new_err("No traceback found."))
-                .inspect(|r| println!("DEBUG: traceback extracted {:?}", r))?;
+                .ok_or(pyo3::exceptions::PyWarning::new_err("No traceback found."))?;
             let format_traceback = traceback_module.getattr("format_tb")?;
             format_traceback
                 .call1((traceback_object,))
