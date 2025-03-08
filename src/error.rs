@@ -63,20 +63,92 @@ impl From<rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>> for Er
 #[cfg(feature = "pyo3")]
 impl From<PyErr> for Error {
     fn from(error: PyErr) -> Self {
-        let error_msg = match pyo3::Python::with_gil(|py| {
+        let error_msg = match pyo3::Python::with_gil(|py| -> Result<Vec<String>> {
             let traceback_module = py.import("traceback")?;
             let traceback_object = error
                 .traceback(py)
                 .ok_or(pyo3::exceptions::PyWarning::new_err("No traceback found."))?;
-            let format_traceback = traceback_module.getattr("format_tb")?;
-            format_traceback
-                .call1((traceback_object,))
-                .and_then(|r| r.extract::<Vec<String>>())
+            let extract_traceback = traceback_module.getattr("extract_tb")?;
+
+            // Get the formatted traceback lines
+            let result = extract_traceback.call1((traceback_object,)).and_then(|r| {
+                match r.extract::<Vec<PyObject>>() {
+                    Ok(v) => {
+                        let mut formatted_lines = Vec::new();
+                        for arg in v.iter() {
+                            let frame = arg.bind(py);
+
+                            // Extract filename
+                            let filename = match frame.getattr("filename") {
+                                Ok(f) => match f.extract::<String>() {
+                                    Ok(s) if s == "<string>".to_string() => {
+                                        // Special handling for <string>
+                                        frame.setattr("filename", "main.py")?;
+                                        let lineno = frame.getattr("lineno")?.extract::<usize>()?;
+                                        frame.setattr("lineno", lineno - 2)?;
+                                        "main.py".to_string()
+                                    }
+                                    Ok(s) => s,
+                                    Err(_) => "<unknown>".to_string(),
+                                },
+                                Err(_) => "<unknown>".to_string(),
+                            };
+
+                            // Extract line number
+                            let lineno = match frame.getattr("lineno") {
+                                Ok(l) => match l.extract::<usize>() {
+                                    Ok(n) => n,
+                                    Err(_) => 0,
+                                },
+                                Err(_) => 0,
+                            };
+
+                            // Extract function name
+                            let name = match frame.getattr("name") {
+                                Ok(n) => match n.extract::<String>() {
+                                    Ok(s) => s,
+                                    Err(_) => "<unknown>".to_string(),
+                                },
+                                Err(_) => "<unknown>".to_string(),
+                            };
+
+                            // Extract line content (if available)
+                            let line = match frame.getattr("line") {
+                                Ok(l) => match l.extract::<Option<String>>() {
+                                    Ok(Some(s)) => format!("\t{}", s),
+                                    _ => "".to_string(),
+                                },
+                                Err(_) => "".to_string(),
+                            };
+
+                            // Format the line like requested
+                            let formatted_line = format!(
+                                "File \"{}\", line {}, in {}\n{}",
+                                filename, lineno, name, line
+                            );
+
+                            formatted_lines.push(formatted_line);
+                        }
+
+                        Ok(formatted_lines)
+                    }
+                    Err(_) => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "Failed to extract traceback",
+                    )),
+                }
+            })?;
+
+            // Add traceback header
+            let mut full_traceback = vec!["Traceback (most recent call last):".to_string()];
+            full_traceback.extend(result);
+
+            // Add error type and message
+            full_traceback.push(error.to_string());
+
+            Ok(full_traceback)
         }) {
-            Ok(formatted) => formatted.join(""),
-            Err(_) => {
-                error.to_string() // Fall back to simple error message
-            }
+            Ok(formatted) => formatted.join("\n"),
+            Err(_) => error.to_string(), // Fall back to simple error message
         };
 
         Error::String(error_msg)
