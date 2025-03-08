@@ -107,7 +107,7 @@ sys.path = sys.path + [{}]
         code
     );
     py_lib::run_python_internal(path_import, "main.py".into())
-        .unwrap_or_else(|e| panic!("Error '{e}' initializing main.py"));
+        .unwrap_or_else(|e| panic!("Error initializing main.py:\n\n{e}\n"));
 }
 
 /// Initializes the plugin.
