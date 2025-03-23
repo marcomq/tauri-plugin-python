@@ -79,15 +79,15 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     init_and_register(vec![])
 }
 
-fn cleanup_path_for_python(path: &str) -> String {
-    path.replace("\\\\?\\", "").replace("\\", "/")
+fn cleanup_path_for_python(path: &PathBuf) -> String {
+    dunce::canonicalize(&path).unwrap().to_string_lossy().replace("\\", "/")
 }
 
 fn init_python(code: String, dir: PathBuf) {
     #[allow(unused_mut)]
     let mut sys_pyth_dir = vec![format!(
         "\"{}\"",
-        cleanup_path_for_python(&dir.canonicalize().unwrap().to_string_lossy())
+        cleanup_path_for_python(&dir)
     )];
     #[cfg(feature = "venv")]
     {
@@ -100,9 +100,7 @@ fn init_python(code: String, dir: PathBuf) {
                     if Path::exists(site_packages.as_path()) {
                         sys_pyth_dir.push(format!(
                             "\"{}\"",
-                            cleanup_path_for_python(
-                                &site_packages.canonicalize().unwrap().to_string_lossy()
-                            )
+                            cleanup_path_for_python(&site_packages)
                         ));
                         break;
                     }
@@ -118,7 +116,6 @@ sys.path = sys.path + [{}]
         sys_pyth_dir.join(", "),
         code
     );
-    dbg!(&sys_pyth_dir);
     py_lib::run_python_internal(path_import, "main.py".into())
         .unwrap_or_else(|e| panic!("Error initializing main.py:\n\n{e}\n"));
 }
@@ -151,7 +148,6 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
             if code.is_empty() {
                 println!("ERROR: Error reading 'src-tauri/main.py'");
             }
-            dir = dir.canonicalize().unwrap();
             init_python(code, dir);
             for function_name in python_functions {
                 py_lib::register_function_str(function_name.into(), None).unwrap();

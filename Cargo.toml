@@ -26,6 +26,7 @@ rustpython-vm = { version = "0.4.0", features = [
     "threading",
 ] }
 serde_json = "1.0.136"
+dunce = "1.0.5"
 
 [build-dependencies]
 tauri-plugin = { version = "2", features = ["build"] }
