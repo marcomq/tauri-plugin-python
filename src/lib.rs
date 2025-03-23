@@ -70,7 +70,7 @@ fn get_resource_dir<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
         .unwrap_or_default()
 }
 
-fn get_current_dir() -> PathBuf {
+fn get_src_python_dir() -> PathBuf {
     std::env::current_dir().unwrap().join("src-python")
 }
 
@@ -79,9 +79,16 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     init_and_register(vec![])
 }
 
+fn cleanup_path_for_python(path: &str) -> String {
+    path.replace("\\\\?\\", "").replace("\\", "/")
+}
+
 fn init_python(code: String, dir: PathBuf) {
     #[allow(unused_mut)]
-    let mut sys_pyth_dir = vec![format!("\"{}\"", dir.to_string_lossy())];
+    let mut sys_pyth_dir = vec![format!(
+        "\"{}\"",
+        cleanup_path_for_python(&dir.canonicalize().unwrap().to_string_lossy())
+    )];
     #[cfg(feature = "venv")]
     {
         let venv_dir = dir.join(".venv").join("lib");
@@ -91,7 +98,12 @@ fn init_python(code: String, dir: PathBuf) {
                     let site_packages = entry.path().join("site-packages");
                     // use first folder with site-packages for venv, ignore venv version
                     if Path::exists(site_packages.as_path()) {
-                        sys_pyth_dir.push(format!("\"{}\"", site_packages.to_string_lossy()));
+                        sys_pyth_dir.push(format!(
+                            "\"{}\"",
+                            cleanup_path_for_python(
+                                &site_packages.canonicalize().unwrap().to_string_lossy()
+                            )
+                        ));
                         break;
                     }
                 }
@@ -106,6 +118,7 @@ sys.path = sys.path + [{}]
         sys_pyth_dir.join(", "),
         code
     );
+    dbg!(&sys_pyth_dir);
     py_lib::run_python_internal(path_import, "main.py".into())
         .unwrap_or_else(|e| panic!("Error initializing main.py:\n\n{e}\n"));
 }
@@ -132,12 +145,13 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
                 println!(
                     "Warning: 'src-tauri/main.py' seems not to be registered in 'tauri.conf.json'"
                 );
-                dir = get_current_dir();
+                dir = get_src_python_dir();
                 code = std::fs::read_to_string(dir.join("main.py")).unwrap_or_default();
             }
             if code.is_empty() {
                 println!("ERROR: Error reading 'src-tauri/main.py'");
             }
+            dir = dir.canonicalize().unwrap();
             init_python(code, dir);
             for function_name in python_functions {
                 py_lib::register_function_str(function_name.into(), None).unwrap();
