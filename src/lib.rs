@@ -80,15 +80,15 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 }
 
 fn cleanup_path_for_python(path: &PathBuf) -> String {
-    dunce::canonicalize(&path).unwrap().to_string_lossy().replace("\\", "/")
+    dunce::canonicalize(path)
+        .unwrap()
+        .to_string_lossy()
+        .replace("\\", "/")
 }
 
 fn init_python(code: String, dir: PathBuf) {
     #[allow(unused_mut)]
-    let mut sys_pyth_dir = vec![format!(
-        "\"{}\"",
-        cleanup_path_for_python(&dir)
-    )];
+    let mut sys_pyth_dir = vec![format!("\"{}\"", cleanup_path_for_python(&dir))];
     #[cfg(feature = "venv")]
     {
         let venv_dir = dir.join(".venv").join("lib");
@@ -98,10 +98,8 @@ fn init_python(code: String, dir: PathBuf) {
                     let site_packages = entry.path().join("site-packages");
                     // use first folder with site-packages for venv, ignore venv version
                     if Path::exists(site_packages.as_path()) {
-                        sys_pyth_dir.push(format!(
-                            "\"{}\"",
-                            cleanup_path_for_python(&site_packages)
-                        ));
+                        sys_pyth_dir
+                            .push(format!("\"{}\"", cleanup_path_for_python(&site_packages)));
                         break;
                     }
                 }
