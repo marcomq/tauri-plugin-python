@@ -86,9 +86,18 @@ fn cleanup_path_for_python(path: &PathBuf) -> String {
         .replace("\\", "/")
 }
 
+fn print_path_for_python(path: &PathBuf) -> String {
+    #[cfg(not(target_os = "windows"))] {
+        format!("\"{}\"", cleanup_path_for_python(path))
+    }
+    #[cfg(target_os = "windows")] {
+         format!("r\"{}\"", cleanup_path_for_python(path))
+    }
+}
+
 fn init_python(code: String, dir: PathBuf) {
     #[allow(unused_mut)]
-    let mut sys_pyth_dir = vec![format!("\"{}\"", cleanup_path_for_python(&dir))];
+    let mut sys_pyth_dir = vec![print_path_for_python(&dir)];
     #[cfg(feature = "venv")]
     {
         let venv_dir = dir.join(".venv").join("lib");
@@ -99,7 +108,7 @@ fn init_python(code: String, dir: PathBuf) {
                     // use first folder with site-packages for venv, ignore venv version
                     if Path::exists(site_packages.as_path()) {
                         sys_pyth_dir
-                            .push(format!("\"{}\"", cleanup_path_for_python(&site_packages)));
+                            .push(print_path_for_python(&site_packages));
                         break;
                     }
                 }
