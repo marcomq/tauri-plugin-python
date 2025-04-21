@@ -17,11 +17,11 @@ mod mobile;
 mod commands;
 mod error;
 mod models;
-#[cfg(not(feature = "pyo3"))]
+#[cfg(all(not(feature = "pyo3"), not(feature = "pyembed")))]
 mod py_lib;
-#[cfg(feature = "pyo3")]
+#[cfg(any(feature = "pyo3", feature = "pyembed"))]
 mod py_lib_pyo3;
-#[cfg(feature = "pyo3")]
+#[cfg(any(feature = "pyo3", feature = "pyembed"))]
 use py_lib_pyo3 as py_lib;
 
 pub use error::{Error, Result};
@@ -87,11 +87,13 @@ fn cleanup_path_for_python(path: &PathBuf) -> String {
 }
 
 fn print_path_for_python(path: &PathBuf) -> String {
-    #[cfg(not(target_os = "windows"))] {
+    #[cfg(not(target_os = "windows"))]
+    {
         format!("\"{}\"", cleanup_path_for_python(path))
     }
-    #[cfg(target_os = "windows")] {
-         format!("r\"{}\"", cleanup_path_for_python(path))
+    #[cfg(target_os = "windows")]
+    {
+        format!("r\"{}\"", cleanup_path_for_python(path))
     }
 }
 
@@ -107,8 +109,7 @@ fn init_python(code: String, dir: PathBuf) {
                     let site_packages = entry.path().join("site-packages");
                     // use first folder with site-packages for venv, ignore venv version
                     if Path::exists(site_packages.as_path()) {
-                        sys_pyth_dir
-                            .push(print_path_for_python(&site_packages));
+                        sys_pyth_dir.push(print_path_for_python(&site_packages));
                         break;
                     }
                 }
@@ -123,6 +124,7 @@ sys.path = sys.path + [{}]
         sys_pyth_dir.join(", "),
         code
     );
+    py_lib::init();
     py_lib::run_python_internal(path_import, "main.py".into())
         .unwrap_or_else(|e| panic!("Error initializing main.py:\n\n{e}\n"));
 }

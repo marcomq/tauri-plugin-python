@@ -3,7 +3,7 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
-#[cfg(feature = "pyo3")]
+#[cfg(any(feature = "pyo3", feature = "pyembed"))]
 use pyo3::{prelude::*, PyErr};
 use serde::{ser::Serializer, Serialize};
 
@@ -35,7 +35,7 @@ impl From<&str> for Error {
     }
 }
 
-#[cfg(not(feature = "pyo3"))]
+#[cfg(all(not(feature = "pyo3"), not(feature = "pyembed")))]
 impl From<rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>> for Error {
     fn from(error: rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>) -> Self {
         let msg = format!("{:?}", &error);
@@ -60,7 +60,7 @@ impl From<rustpython_vm::PyRef<rustpython_vm::builtins::PyBaseException>> for Er
     }
 }
 
-#[cfg(feature = "pyo3")]
+#[cfg(any(feature = "pyo3", feature = "pyembed"))]
 impl From<PyErr> for Error {
     fn from(error: PyErr) -> Self {
         let error_msg = match pyo3::Python::with_gil(|py| -> Result<Vec<String>> {

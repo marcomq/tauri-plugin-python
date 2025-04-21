@@ -29,7 +29,7 @@ and can get called during application workflow.
 https://github.com/tauri-apps/tauri/issues/11823 \
 So python code cannot be read on android right now. Android is going to be supported as soon as reading resource files will be fixed.
 
-`✓*` Linux, Windows and MacOS support PyO3 and RustPython as interpreter. Android and IOS
+`✓*` Linux, Windows and MacOS support PyO3 and RustPython as interpreter. Android and iOS
 currently only support RustPython. 
 Android and iOS might also be able to run with PyO3 in theory but would require to have CPython
 to be compiled for the target platform. I still need to figure out how to 
@@ -44,9 +44,35 @@ to make sure to also ship all your python code. If you use PyO3, you also need t
 
 ### Switch from RustPython to PyO3
 
+Using PyO3 will support much more python libraries than RustPython as it is using CPython. 
+Unfortunately, using PyO3 will use a shared libpython by default, which makes
+local development easy but makes
+deployment of releases more complicated.
+
 ```toml
 # src-tauri/Cargo.toml
 tauri-plugin-python = { version="0.3", , features = ["pyo3"] }
+
+```
+
+### Switch to PyEmbed
+
+Using PyEmbed will internally also use PyO3. It will perform static linking
+of libpython, so deployment of a release binary is much easier.
+It may support less libraries than PyO3, but much more than RustPython.
+Unfortunately, development is more complicated as rust-analyzer may create issues
+and the application may crash during startup if environment variables are not set correctly.
+To use it, you need to set `PYO3_CONFIG_FILE`, for example: 
+```sh
+PYO3_CONFIG_FILE=${PWD}/src-tauri/target/pyembed/pyo3-build-config-file.txt npm run tauri dev
+```
+
+```toml
+# src-tauri/Cargo.toml
+tauri-plugin-python = { version="0.3", features = ["pyembed"] }
+
+You also need to install `pyoxidizer` first, either by cargo
+`cargo install pyoxidizer` or pip `pip install pyoxidizer`.
 
 ```
 
@@ -65,10 +91,10 @@ These steps assume that you already have a basic tauri application available. Al
 ```python
 # src-tauri/src-python/main.py
 _tauri_plugin_functions = ["greet_python"] # make "greet_python" callable from UI
-def greet_python(rust_var)
+def greet_python(rust_var):
     return str(rust_var) + " from python"
 ```
-- add `"bundle": {"resources": [  "src-python/**/*"],` to `tauri.conf.json` so that python files are bundled with your application
+- add `"bundle": {"resources": [  "src-python/"],` to `tauri.conf.json` so that python files are bundled with your application
 - add the plugin in your js, so 
    - add `import { callFunction } from 'tauri-plugin-python-api'` 
    - add `outputEl.textContent = await callFunction("greet_python", [value])` to get the output of the python function `greet_python` with parameter of js variable `value`
@@ -85,16 +111,16 @@ Tauri events and calling js from python is currently not supported yet. You woul
 - add file `src-tauri/src-python/main.py` and add python code, for example:
 ```python
 # src-tauri/src-python/main.py
-def greet_python(rust_var)
+def greet_python(rust_var):
     return str(rust_var) + " from python"
 ```
 - add `.plugin(tauri_plugin_python::init_and_register(vec!["greet_python"))` to `tauri::Builder::default()`, usually in `src-tauri/src/lib.rs`. This will initialize the plugin and make the python function "greet_python" available from javascript.
-- add javascript for python plugin in the index.html file directly or in your somewhere in your javascript application. For vanilla javascript / iife, the modules can be found in `window.__TAURI__.python`. For modern javascript:
+- add javascript for python plugin in the index.html file directly or somewhere in your javascript application. For vanilla javascript / iife, the modules can be found in `window.__TAURI__.python`. For modern javascript:
 ```javascript
 import { callFunction } from 'tauri-plugin-python-api'
 console.log(await callFunction("greet_python", ["input value"]))
 ```
--> this will call the python function "greet_python" with parameter "input value". Of course, you can just pass in any available javascript value. This should work with "boolean", "integer", "double", "string", "string[]", "double[]" parameter types.
+→ this will call the python function "greet_python" with parameter "input value". Of course, you can just pass in any available javascript value. This should work with "boolean", "integer", "double", "string", "string[]", "double[]" parameter types.
 
 Alternatively, to have more readable code: 
 ```javascript
@@ -103,18 +129,51 @@ registerJs("greet_python");
 console.log(await call.greet_python("input value"));
 ```
 
+## Using a venv
+
+Using a python venv is highly recommended when using pip dependencies. 
+It will be loaded automatically, if the folder is called `.venv`. 
+It would be recommended to create it in the project root:
+```sh
+python3 -m venv .venv 
+source .venv/bin/activate
+pip install <your_lib>
+```
+
+You need to make sure that the relevant venv folders `include` and `lib` are 
+copied next to the `src-python` tauri resource folder:
+
+`tauri.conf.json` 
+```json
+"resources": {
+    "src-python/": "src-python/",
+    "../.venv/include/": "src-python/.venv/include/",
+    "../.venv/lib/": "src-python/.venv/lib/"
+}
+```
+
 ## Deployment
 
-You either need to have python installed on the target machine or ship the shared 
-python library with your package. You also may link the python library statically - PyO3 
-may do this by default if it finds a static python library. In addition, you need 
-to copy the python files so that python files are next to the binary. 
-
-The file `src-python/main.py` is required for the plugin to work correctly. 
+The file `src-python/main.py` is always required for the plugin to work correctly. 
 You may also add additional python files or use a venv environment. 
-The included resources can be configurable in the `tauri.conf.json` file. 
+The included resources can be configured in the `tauri.conf.json` file. 
+You need to make sure that all python files are included in the tauri resource files and that 
+your resource file structure is similar to the local python file structure.
 
-Check the tauri and PyO3 documentation for additional info. 
+There are no other extra steps required for **RustPython** as it will be linked statically.
+
+For **PyEmbed**, python will also be linked statically. Internally PyEmbed is using PyO3 too.
+PyEmbed will be harder to build, but easier to deploy.
+You need to make sure to set all PyO3 variables correctly. This is typically 
+the environment variable `PYO3_CONFIG_FILE`. 
+Otherwise, the application will typically crash during startup with an error 
+`during initializing Python main: Failed to import encodings module`.
+
+For **PyO3**, python will be linked dynamically by default. You either need to 
+have python installed on the target machine with the same version or ship the shared 
+python library with your package.
+Check the PyO3 documentation for additional info. 
+
 
 ## Security considerations
 By default, this plugin cannot call arbitrary python code. Python functions can only be called if registered from rust during plugin initialization.
@@ -136,5 +195,5 @@ It is a different approach to have all tauri functionality completely in python.
 This approach here with tauri-plugin-python is more lightweight and it is for you, if you 
 - still want to write rust code
 - already have a tauri application and just need a specific python library
-- just want to simply support rare custom plugins
+- just want to simply support rare custom tauri plugins
 - if you want to embed python code directly in your javascript
