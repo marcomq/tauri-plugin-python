@@ -70,11 +70,11 @@ PYO3_CONFIG_FILE=${PWD}/src-tauri/target/pyembed/pyo3-build-config-file.txt npm 
 ```toml
 # src-tauri/Cargo.toml
 tauri-plugin-python = { version="0.3", features = ["pyembed"] }
+```
 
 You also need to install `pyoxidizer` first, either by cargo
 `cargo install pyoxidizer` or pip `pip install pyoxidizer`.
 
-```
 
 ## Example app
 
