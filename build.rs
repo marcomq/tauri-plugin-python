@@ -16,6 +16,7 @@ const COMMANDS: &[&str] = &[
 
 #[cfg(feature = "pyembed")]
 fn init_pyembed() {
+    use std::path::Path;
     let pyoxidizer_exe = if let Ok(path) = std::env::var("PYOXIDIZER_EXE") {
         path
     } else {
@@ -35,6 +36,16 @@ fn init_pyembed() {
         Ok(status) => {
             if !status.success() {
                 panic!("`pyoxidizer run-build-script` failed");
+            }
+            let src_tauri_dir = format!("{}/../../../../../../src-tauri", out_dir);
+            let cargo_config = Path::new(&src_tauri_dir).join(".cargo").join("config.toml");
+            dbg!(&cargo_config);
+            if !cargo_config.exists() {
+                let content = r#"
+[env]
+PYO3_CONFIG_FILE = { value = "target/pyembed/pyo3-build-config-file.txt", relative = true }"#;
+                let _ignore = std::fs::create_dir(Path::new(&src_tauri_dir).join(".cargo"));
+                std::fs::write(cargo_config, content).unwrap();
             }
         }
         Err(e) => panic!(

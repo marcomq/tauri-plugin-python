@@ -4,9 +4,10 @@ This [tauri](https://v2.tauri.app/) v2 plugin is supposed to make it easy to use
 It uses [RustPython](https://github.com/RustPython/RustPython) or alternatively [PyO3](https://pyo3.rs) as interpreter to call python from rust.
 
 RustPython doesn't require python to be installed on the target platform and makes it 
-therefore easy to deploy your production binary. Unfortunately, it has some 
-compatibility issues and is slower than PyO3/CPython. PyO3 is also supported as optional Cargo feature for desktop applications. 
-PyO3 uses CPython as interpreter and therefore has a wide compatibility for available python libraries.
+therefore easy to deploy your production binary. Unfortunately, it doesn't even support
+some usually built-int python libraries and is slower than PyO3/CPython. 
+PyO3 is supported as optional Cargo feature for desktop applications. 
+PyO3 uses the usual CPython as interpreter and therefore has a wide compatibility for available python libraries.
 It isn't used as default as it requires to make libpython available for the target platform,
 which can be complicated, especially for mobile targets.
 
@@ -36,7 +37,7 @@ to be compiled for the target platform. I still need to figure out how to
 cross compile python and PyO3 for iOS and Android. Ping me if you know how to do that.
 
 
-You can use this plugin for fast prototypes or for production code. 
+You can use this plugin for fast prototypes or for (early) production code. 
 It might be possible that you want to use some python library or code that
 is not available for rust yet.
 In case that you want to ship production software packages, you need 
@@ -61,11 +62,15 @@ Using PyEmbed will internally also use PyO3. It will perform static linking
 of libpython, so deployment of a release binary is much easier.
 It may support less libraries than PyO3, but much more than RustPython.
 Unfortunately, development is more complicated as rust-analyzer may create issues
-and the application may crash during startup if environment variables are not set correctly.
-To use it, you need to set `PYO3_CONFIG_FILE`, for example: 
+and the application may crash during startup with an error 
+`during initializing Python main: Failed to import encodings module`
+if environment variables are not set correctly.
+To use it, you can set the `PYO3_CONFIG_FILE` env variable, for example: 
 ```sh
 PYO3_CONFIG_FILE=${PWD}/src-tauri/target/pyembed/pyo3-build-config-file.txt npm run tauri dev
 ```
+This will be set automatically on 2nd compilation as the first build creates a `.cargo/config.toml` file
+that will automatically set it.
 
 ```toml
 # src-tauri/Cargo.toml
