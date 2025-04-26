@@ -11,7 +11,7 @@ pub struct StringRequest {
     pub value: String,
 }
 
-#[cfg(feature = "pyo3")]
+#[cfg(any(feature = "pyo3", feature = "pyembed"))]
 #[derive(Debug, Serialize, Deserialize, pyo3::IntoPyObject)]
 #[serde(untagged)]
 pub enum JsMany {
@@ -23,7 +23,7 @@ pub enum JsMany {
     FloatVec(Vec<f64>),
 }
 
-#[cfg(not(feature = "pyo3"))]
+#[cfg(all(not(feature = "pyo3"), not(feature = "pyembed")))]
 use serde_json::Value as JsMany;
 
 #[derive(Debug, Deserialize, Serialize)]

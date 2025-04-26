@@ -23,6 +23,8 @@ lazy_static! {
     static ref GLOBALS: rustpython_vm::scope::Scope = create_globals();
 }
 
+pub fn init() {}
+
 pub fn run_python(payload: StringRequest) -> crate::Result<()> {
     run_python_internal(payload.value, "<embedded>".into())
 }

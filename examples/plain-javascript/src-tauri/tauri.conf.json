@@ -22,9 +22,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": [
-      "src-python/**/*"
-    ],
+    "resources": {
+      "src-python/": "src-python/"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

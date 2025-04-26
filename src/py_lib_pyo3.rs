@@ -7,10 +7,8 @@ use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, ffi::CString, sync::Mutex};
 
 use lazy_static::lazy_static;
-use pyo3::exceptions::PyBaseException;
 use pyo3::types::{PyAnyMethods, PyDictMethods};
-use pyo3::PyErr;
-use pyo3::{marker, types::PyDict, Py, PyAny};
+use pyo3::{exceptions::PyBaseException, marker::Python, types::PyDict, Py, PyAny, PyErr};
 
 use crate::{models::*, Error};
 
@@ -18,7 +16,48 @@ lazy_static! {
     static ref INIT_BLOCKED: AtomicBool = false.into();
     static ref FUNCTION_MAP: Mutex<HashMap<String, Py<PyAny>>> = Mutex::new(HashMap::new());
     static ref GLOBALS: Mutex<Py<PyDict>> =
-        Mutex::new(marker::Python::with_gil(|py| { PyDict::new(py).into() }));
+        Mutex::new(py_run::with_gil(|py| { PyDict::new(py).into() }));
+}
+
+#[cfg(feature = "pyembed")]
+mod py_run {
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/../../../../pyembed/default_python_config.rs"
+    ));
+    struct Interpreter<'a, 'b> {
+        pub inner: pyembed::MainPythonInterpreter<'a, 'b>,
+    }
+    super::lazy_static! {
+        static ref INTERPRETER: Interpreter<'static, 'static> = Interpreter { inner: pyembed::MainPythonInterpreter::new(default_python_config()).unwrap() };
+
+    }
+    pub fn with_gil<F, R>(callback: F) -> R
+    where
+        F: for<'py> FnOnce(super::Python<'py>) -> R,
+    {
+        INTERPRETER.inner.with_gil(callback)
+    }
+
+    unsafe impl Send for Interpreter<'static, 'static> {}
+    unsafe impl Sync for Interpreter<'static, 'static> {}
+}
+
+#[cfg(not(feature = "pyembed"))]
+mod py_run {
+    pub fn with_gil<F, R>(callback: F) -> R
+    where
+        F: for<'py> FnOnce(super::Python<'py>) -> R,
+    {
+        super::Python::with_gil(callback)
+    }
+}
+
+pub fn init() {
+    #[cfg(not(feature = "pyembed"))]
+    {
+        pyo3::prepare_freethreaded_python();
+    }
 }
 
 pub fn run_python(payload: StringRequest) -> crate::Result<()> {
@@ -26,7 +65,7 @@ pub fn run_python(payload: StringRequest) -> crate::Result<()> {
 }
 
 pub fn run_python_internal(code: String, _filename: String) -> crate::Result<()> {
-    marker::Python::with_gil(|py| -> crate::Result<()> {
+    py_run::with_gil(|py| -> crate::Result<()> {
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
         let c_code = CString::new(code).expect("CString::new failed");
         Ok(py.run(&c_code, Some(&globals), None)?)
@@ -41,7 +80,7 @@ pub fn register_function_str(fn_name: String, number_of_args: Option<u8>) -> cra
     if INIT_BLOCKED.load(std::sync::atomic::Ordering::Relaxed) {
         return Err("Cannot register after function called".into());
     }
-    marker::Python::with_gil(|py| -> crate::Result<()> {
+    py_run::with_gil(|py| -> crate::Result<()> {
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
 
         let fn_dot_split: Vec<&str> = fn_name.split(".").collect();
@@ -84,7 +123,7 @@ if len(signature({}).parameters) != {}:
 }
 pub fn call_function(payload: RunRequest) -> crate::Result<String> {
     INIT_BLOCKED.store(true, std::sync::atomic::Ordering::Relaxed);
-    marker::Python::with_gil(|py| -> crate::Result<String> {
+    py_run::with_gil(|py| -> crate::Result<String> {
         let arg = pyo3::types::PyTuple::new(py, payload.args)?;
         let map = FUNCTION_MAP
             .lock()
@@ -105,7 +144,7 @@ pub fn call_function(payload: RunRequest) -> crate::Result<String> {
 }
 
 pub fn read_variable(payload: StringRequest) -> crate::Result<String> {
-    marker::Python::with_gil(|py| -> crate::Result<String> {
+    py_run::with_gil(|py| -> crate::Result<String> {
         let globals = GLOBALS.lock().unwrap().clone_ref(py).into_bound(py);
 
         let var_dot_split: Vec<&str> = payload.value.split(".").collect();
