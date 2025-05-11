@@ -23,7 +23,7 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "src-python/**/*"
+      "src-python/"
     ],
     "icon": [
       "icons/32x32.png",

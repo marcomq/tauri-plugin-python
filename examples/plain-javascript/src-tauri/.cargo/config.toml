@@ -1,0 +1,3 @@
+
+[env]
+PYO3_CONFIG_FILE = { value = "target/pyembed/pyo3-build-config-file.txt", relative = true }

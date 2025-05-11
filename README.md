@@ -4,9 +4,10 @@ This [tauri](https://v2.tauri.app/) v2 plugin is supposed to make it easy to use
 It uses [RustPython](https://github.com/RustPython/RustPython) or alternatively [PyO3](https://pyo3.rs) as interpreter to call python from rust.
 
 RustPython doesn't require python to be installed on the target platform and makes it  
-therefore easy to deploy your production binary. Unfortunately, it has some  
-compatibility issues and is slower than PyO3/CPython. PyO3 is also supported as optional Cargo feature for desktop applications.  
-PyO3 uses CPython as interpreter and therefore has a wide compatibility for available python libraries.  
+therefore easy to deploy your production binary. Unfortunately, it doesn't even support
+some usually built-int python libraries and is slower than PyO3/CPython. 
+PyO3 is supported as optional Cargo feature for desktop applications. 
+PyO3 uses the usual CPython as interpreter and therefore has a wide compatibility for available python libraries.
 It isn't used as default as it requires to make libpython available for the target platform,  
 which can be complicated, especially for mobile targets.
 
@@ -33,18 +34,39 @@ Android and iOS might also be able to run with PyO3 in theory but would require 
 to be compiled for the target platform. I still need to figure out how to  
 cross compile python and PyO3 for iOS and Android. Ping me if you know how to do that.
 
-You can use this plugin for fast prototypes or for production code.  
+You can use this plugin for fast prototypes or for (early) production code.
 It might be possible that you want to use some python library or code that  
 is not available for rust yet.  
 In case that you want to ship production software packages, you need  
 to make sure to also ship all your python code. If you use PyO3, you also need to ship libpython too.
 
 ### Switch from RustPython to PyO3
-
+Using [PyO3](https://github.com/PyO3/pyo3) will support much more python libraries than RustPython as it is using CPython. 
 ```toml
 # src-tauri/Cargo.toml
 tauri-plugin-python = { version="0.3", features = ["pyo3"] }
 ```
+Unfortunately, using PyO3 will use a shared libpython by default, which makes
+local development easy but makes
+deployment of releases more complicated.
+Therefore, it may be recommended to either use [pyoxidizer](https://github.com/indygreg/PyOxidizer) to embed libpython statically 
+or try to ship the dynamic libpython together with your application, for example as part
+of the .venv. Check out the [PyO3 documentation](https://pyo3.rs/v0.24.2/building-and-distribution.html) for additional support.
+
+Example of how to embed libpython statically using PyOxidizer:
+
+This has just been tested locally on MacOS. It may be possible that this is more complicated and requires additional steps on your environment.
+
+Install pyoxidizer `pip install pyoxidizer` in a venv and run it on bash:
+```bash
+pyoxidizer generate-python-embedding-artifacts src-tauri/target/pyembed
+```
+Then, add it to your cargo config:
+```toml
+# src-tauri/.cargo/config.toml
+PYO3_CONFIG_FILE = { value = "target/pyembed/pyo3-build-config-file.txt", relative = true }
+```
+You can check if the release binary has some shared libpython references by running `otool -L tauri_app` on MacOs or `ldd tauri_app` on linux.
 
 ## Example app
 
@@ -63,7 +85,7 @@ _tauri_plugin_functions = ["greet_python"]  # make "greet_python" callable from 
 def greet_python(rust_var):
     return str(rust_var) + " from python"
 ```
-- add `"bundle": {"resources": [  "src-python/**/*"],` to `tauri.conf.json` so that python files are bundled with your application
+- add `"bundle": {"resources": [  "src-python/"],` to `tauri.conf.json` so that python files are bundled with your application
 - add the plugin in your js, so  
    - add `import { callFunction } from 'tauri-plugin-python-api'`  
    - add `outputEl.textContent = await callFunction("greet_python", [value])` to get the output of the python function `greet_python` with parameter of js variable `value`
@@ -97,16 +119,41 @@ import { call, registerJs } from 'tauri-plugin-python-api'
 registerJs("greet_python");
 console.log(await call.greet_python("input value"));
 ```
+## Using a venv
+
+Using a python venv is highly recommended when using pip dependencies. 
+It will be loaded automatically, if the folder is called `.venv`. 
+It would be recommended to create it in the project root:
+```sh
+python3 -m venv .venv 
+source .venv/bin/activate # or run the .venv/bin/activate.bat script
+pip install <your_lib>
+```
+
+You need to make sure that the relevant venv folders `include` and `lib` are 
+copied next to the `src-python` tauri resource folder:
+
+`tauri.conf.json` 
+```json
+"resources": {
+    "src-python/": "src-python/",
+    "../.venv/include/": "src-python/.venv/include/",
+    "../.venv/lib/": "src-python/.venv/lib/"
+}
+```
 
 ## Deployment
 
-You either need to have python installed on the target machine or ship the shared  
-python library with your package. You also may link the python library statically - PyO3  
-may do this by default if it finds a static python library. In addition, you need  
-to copy the python files so that python files are next to the binary.  
+The file `src-python/main.py` is always required for the plugin to work correctly.
+The included resources can be configured in the `tauri.conf.json` file. 
+You need to make sure that all python files are included in the tauri resource files and that 
+your resource file structure is similar to the local python file structure.
 
-The file `src-python/main.py` is required for the plugin to work correctly.  
-You may also add additional python files or use a venv environment.  
+There are no other extra steps required for **RustPython** as it will be linked statically.
+For **PyO3**, you either need to have python installed on the target machine or ship the shared  
+python library with your package. You also may link the python library statically, for example by using PyOxidizer. In addition, you need  
+to copy all additional python files so that python files are next to the binary and should also export the .venv folder, if you are using a venv.
+
 The included resources can be configurable in the `tauri.conf.json` file.  
 
 Check the tauri and PyO3 documentation for additional info.
@@ -133,5 +180,5 @@ It is a different approach to have all tauri functionality completely in python.
 This approach here with tauri-plugin-python is more lightweight and it is for you, if you  
 - still want to write rust code  
 - already have a tauri application and just need a specific python library  
-- just want to simply support rare custom plugins  
+- just want to simply support rare tauri plugins  
 - want to embed python code directly in your javascript
