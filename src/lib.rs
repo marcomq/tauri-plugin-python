@@ -76,7 +76,6 @@ impl<R: Runtime, T: Manager<R> + Sync> crate::PythonExt<R> for T {
             .runner()
             .read_variable(&payload.python_function_call)
             .await?;
-        dbg!(&_tmp);
         Ok(StringResponse { value: "Ok".into() })
     }
 
@@ -93,7 +92,7 @@ impl<R: Runtime, T: Manager<R> + Sync> crate::PythonExt<R> for T {
             .call_function(&function_name, payload.args)
             .await?;
         Ok(StringResponse {
-            value: py_res.to_string(),
+            value: py_res.as_str().unwrap().to_string(),
         })
     }
 
@@ -198,18 +197,15 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
                         .run_file(main_py.as_path())
                         .await
                         .expect("ERROR: Error running 'src-tauri/main.py'");
-                    let functions = runner
-                        .read_variable("_tauri_plugin_functions")
-                        .await
-                        .unwrap_or_default()
-                        .as_str()
-                        .unwrap()
-                        .replace("'", "\""); // python arrays are serialized usings ' instead of "
                     register_python_functions(
                         app,
                         python_functions.iter().map(|s| s.to_string()).collect(),
                     ).await;
-                    if let Ok(python_functions) = serde_json::from_str::<Vec<String>>(&functions) {
+                    let functions = runner
+                        .read_variable("_tauri_plugin_functions")
+                        .await
+                        .unwrap_or_default();
+                    if let Ok(python_functions) = serde_json::from_value(functions) {
                         register_python_functions(app, python_functions).await;
                     }
                 });
