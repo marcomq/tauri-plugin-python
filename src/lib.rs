@@ -67,15 +67,28 @@ impl<R: Runtime, T: Manager<R> + Sync> crate::PythonExt<R> for T {
         if INIT_BLOCKED.load(std::sync::atomic::Ordering::Relaxed) {
             return Err("Cannot register after function called".into());
         }
-
         FUNCTION_MAP
             .lock()
             .unwrap()
             .insert(payload.python_function_call.clone());
+
         let _tmp = self
             .runner()
             .read_variable(&payload.python_function_call)
             .await?;
+        if let Some(num_args) = payload.number_of_args {
+            let py_analyze_sig = format!(
+                r#"
+from inspect import signature
+if len(signature({}).parameters) != {}:
+    raise Exception("Function parameters don't match in 'registerFunction'")
+"#,
+                &payload.python_function_call, num_args
+            );
+            self.runner().run(&py_analyze_sig).await.unwrap_or_else(|_| {
+                    panic!("Number of args doesn't match signature of {}.", payload.python_function_call)
+                });
+        };
         Ok(StringResponse { value: "Ok".into() })
     }
 
