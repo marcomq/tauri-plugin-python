@@ -85,8 +85,14 @@ if len(signature({}).parameters) != {}:
 "#,
                 &payload.python_function_call, num_args
             );
-            self.runner().run(&py_analyze_sig).await.unwrap_or_else(|_| {
-                    panic!("Number of args doesn't match signature of {}.", payload.python_function_call)
+            self.runner()
+                .run(&py_analyze_sig)
+                .await
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Number of args doesn't match signature of {}.",
+                        payload.python_function_call
+                    )
                 });
         };
         Ok(StringResponse { value: "Ok".into() })
@@ -107,10 +113,8 @@ if len(signature({}).parameters) != {}:
         let value = match py_res.as_str() {
             Some(s) => s.to_string(),
             None => py_res.to_string(),
-        };  
-        Ok(StringResponse {
-            value,
-        })
+        };
+        Ok(StringResponse { value })
     }
 
     async fn read_variable(&self, payload: StringRequest) -> crate::Result<StringResponse> {
@@ -217,7 +221,8 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
                     register_python_functions(
                         app,
                         python_functions.iter().map(|s| s.to_string()).collect(),
-                    ).await;
+                    )
+                    .await;
                     let functions = runner
                         .read_variable("_tauri_plugin_functions")
                         .await
@@ -232,10 +237,7 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
         .build()
 }
 
-async fn register_python_functions<R: Runtime>(
-    app: &AppHandle<R>,
-    python_functions: Vec<String>,
-) {
+async fn register_python_functions<R: Runtime>(app: &AppHandle<R>, python_functions: Vec<String>) {
     for function_name in python_functions {
         app.register_function(RegisterRequest {
             python_function_call: function_name.clone(),

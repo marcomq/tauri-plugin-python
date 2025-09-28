@@ -4,7 +4,10 @@
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
 use super::*;
-use tauri::{test::{self, MockRuntime}, AppHandle};
+use tauri::{
+    test::{self, MockRuntime},
+    AppHandle,
+};
 
 /// Creates a mock Tauri app and initializes the PyRunner state.
 /// It also runs some initial Python code to set up a variable and a function for testing.
@@ -104,5 +107,8 @@ async fn test_register_after_call_fails() {
     };
     let result = app.register_function(second_register_payload).await;
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Cannot register after function called"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Cannot register after function called"));
 }
