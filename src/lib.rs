@@ -104,8 +104,12 @@ if len(signature({}).parameters) != {}:
             .runner()
             .call_function(&function_name, payload.args)
             .await?;
+        let value = match py_res.as_str() {
+            Some(s) => s.to_string(),
+            None => py_res.to_string(),
+        };  
         Ok(StringResponse {
-            value: py_res.as_str().unwrap().to_string(),
+            value,
         })
     }
 
@@ -241,3 +245,6 @@ async fn register_python_functions<R: Runtime>(
         .unwrap();
     }
 }
+
+#[cfg(test)]
+mod tests;
