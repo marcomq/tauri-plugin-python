@@ -14,26 +14,26 @@ pub(crate) async fn run_python<R: Runtime>(
     app: AppHandle<R>,
     payload: StringRequest,
 ) -> Result<StringResponse> {
-    app.run_python(payload)
+    app.run_python(payload).await
 }
 #[command]
 pub(crate) async fn register_function<R: Runtime>(
     app: AppHandle<R>,
     payload: RegisterRequest,
 ) -> Result<StringResponse> {
-    app.register_function(payload)
+    app.register_function(payload).await
 }
 #[command]
 pub(crate) async fn call_function<R: Runtime>(
     app: AppHandle<R>,
     payload: RunRequest,
 ) -> Result<StringResponse> {
-    app.call_function(payload)
+    app.call_function(payload).await
 }
 #[command]
 pub(crate) async fn read_variable<R: Runtime>(
     app: AppHandle<R>,
     payload: StringRequest,
 ) -> Result<StringResponse> {
-    app.read_variable(payload)
+    app.read_variable(payload).await
 }
