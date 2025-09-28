@@ -1,11 +1,10 @@
 [package]
 name = "tauri-plugin-python"
-version = "0.3.6"
+version = "0.3.7"
 authors = [ "Marco Mengelkoch" ]
 description = "A tauri 2 plugin to use python code in the backend."
 keywords = ["rust", "python", "tauri", "gui"]
 edition = "2021"
-rust-version = "1.77.2"
 exclude = ["/examples", "/webview-dist", "/webview-src", "/node_modules"]
 links = "tauri-plugin-python"
 license = "MIT"
@@ -16,23 +15,23 @@ repository = "https://github.com/marcomq/tauri-plugin-python"
 tauri = { version = "2" }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
+async-trait = "0.1"
+
 lazy_static = "1.5.0"
-pyo3 = { version = "0.23.3", features=["auto-initialize", "generate-import-lib"], optional = true }
-rustpython-pylib = { version = "0.4.0" }
-rustpython-stdlib = { version = "0.4.0", features = ["threading"] }
-rustpython-vm = { version = "0.4.0", features = [
-    "importlib",
-    "serde",
-    "threading",
-] }
+async_py = { version = "0.2.1", default-features = false }
+tokio = { version = "1", features = ["full"] }
 serde_json = "1.0.136"
 dunce = "1.0.5"
 
 [build-dependencies]
 tauri-plugin = { version = "2", features = ["build"] }
 
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }
+
 [features]
 venv = []
-default = ["venv"] # auto load src-python/.venv
-# default = ["venv", "pyo3"] # enable to use pyo3 instead of rustpython
-pyo3 = ["dep:pyo3"]
+default = ["venv", "pyo3"] # auto load src-python/.venv
+# default = ["venv", "pyo3"] # enable to use pyo3 instead of rustpython.
+rustpython = ["async_py/rustpython"]
+pyo3 = ["async_py/pyo3"]
