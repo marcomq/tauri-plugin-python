@@ -4,6 +4,7 @@
   "author": "Marco Mengelkoch",
   "description": "Javascript package for tauri 2 python plugin.",
   "type": "module",
+  "packageManager": "pnpm@9.15.0",
   "types": "./dist-js/index.d.ts",
   "main": "./dist-js/index.cjs",
   "module": "./dist-js/index.js",
