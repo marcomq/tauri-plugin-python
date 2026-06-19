@@ -55,6 +55,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: release
     environment: release
+    permissions:
+      # Required for crates.io Trusted Publishing (OIDC).
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -72,6 +76,12 @@ jobs:
         with:
           python-version: '3.x'
 
+      # Exchange the GitHub OIDC token for a short-lived crates.io token.
+      # Sets CARGO_REGISTRY_TOKEN in the environment for subsequent steps.
+      - name: Authenticate to crates.io (Trusted Publishing)
+        uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+
       # Skip if this version is already on crates.io so re-running the
       # workflow (or moving the tag) doesn't fail on a duplicate publish.
       - name: Publish to crates.io
@@ -84,7 +94,7 @@ jobs:
             cargo publish
           fi
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
 
   publish-npm:
     name: Publish to npm
