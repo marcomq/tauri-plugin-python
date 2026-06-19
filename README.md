@@ -230,10 +230,10 @@ PyO3 needs a `libpython` at runtime, which is what makes PyO3 deployment harder.
 
 1. **Ship an embeddable / standalone Python** with the app (recommended for end-user distribution).
    Bundle a self-contained Python (e.g. [python-build-standalone](https://github.com/astral-sh/python-build-standalone)
-   or the Windows embeddable zip) as a resource and point the app at it. A community project demonstrating exactly
-   this with Tauri is [@Qingbao's tauri-agent](https://github.com/Qingbao/tauri-agent) – it downloads an embedded
-   Python into the bundle and sets the Python path before launch, so the target needs no system Python and there is
-   no fragile dynamic linking.
+   or the Windows embeddable zip) as a resource and point the app at it before launch, so the target needs no system
+   Python and there is no fragile dynamic linking. For one community example of wiring an embedded Python into a Tauri
+   app, see [@Qingbao's tauri-agent](https://github.com/Qingbao/tauri-agent) (third-party, not tested by us – treat it
+   as a starting point rather than a recommendation).
 2. **Ship the shared libpython** next to the executable / inside the `.venv` you bundle. Check what is linked with
    `otool -L tauri_app` (macOS) or `ldd tauri_app` (Linux); a line such as
    `.../Python.framework/Versions/3.13/Python` tells you which version the target must provide at the same location.
