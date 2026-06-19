@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "es2021",
     "module": "esnext",
+    "rootDir": "guest-js",
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "strict": true,

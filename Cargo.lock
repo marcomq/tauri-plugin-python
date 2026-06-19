@@ -4645,7 +4645,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-python"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "async-trait",
  "async_py",
