@@ -91,6 +91,11 @@ jobs:
     runs-on: ubuntu-22.04
     needs: release
     environment: release
+    permissions:
+      # Required for npm Trusted Publishing (OIDC): GitHub mints a short-lived
+      # identity token that npm verifies — no NPM_TOKEN/OTP needed.
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -101,10 +106,16 @@ jobs:
           node-version: lts/*
           registry-url: 'https://registry.npmjs.org'
 
+      # Trusted Publishing (OIDC) requires npm >= 11.5.1; the version bundled
+      # with the LTS Node release is older.
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
       - name: install dependencies
         run: pnpm install
 
-      # pnpm publish runs `prepublishOnly` (pnpm build) to produce dist-js/.
+      # npm publish runs `prepublishOnly` (pnpm build) to produce dist-js/.
+      # Use the npm CLI (not pnpm) so OIDC trusted publishing is used.
       # Skip if this version is already on npm so re-running doesn't fail
       # on a duplicate publish.
       - name: Publish to npm
@@ -114,7 +125,5 @@ jobs:
           if [ -n "$(npm view "$NAME@$VERSION" version 2>/dev/null)" ]; then
             echo "npm already has $NAME@$VERSION — skipping publish."
           else
-            pnpm publish --no-git-checks --access public
+            npm publish --access public
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
