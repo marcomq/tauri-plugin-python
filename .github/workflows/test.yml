@@ -1,0 +1,106 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: checkout plugin
+        uses: actions/checkout@v4
+        with:
+          path: tauri-plugin-python
+
+      # TEMP: the plugin's Cargo.toml has `[patch.crates-io] async_py = { path = "../async_py" }`
+      # until async_py 0.3.2 is published to crates.io. Remove this step (and the patch) afterwards.
+      - name: checkout async_py (local patch source)
+        uses: actions/checkout@v4
+        with:
+          repository: marcomq/async_py
+          path: async_py
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tauri-plugin-python
+
+      - name: install dependencies (ubuntu)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: rustfmt
+        working-directory: tauri-plugin-python
+        run: cargo fmt --all --check
+
+      - name: clippy (pyo3 / default)
+        working-directory: tauri-plugin-python
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: clippy (rustpython)
+        working-directory: tauri-plugin-python
+        run: cargo clippy --no-default-features --features rustpython --all-targets -- -D warnings
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+        backend: [pyo3, rustpython]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: checkout plugin
+        uses: actions/checkout@v4
+        with:
+          path: tauri-plugin-python
+
+      # TEMP: see note in the `lint` job. Remove once async_py 0.3.2 is on crates.io.
+      - name: checkout async_py (local patch source)
+        uses: actions/checkout@v4
+        with:
+          repository: marcomq/async_py
+          path: async_py
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tauri-plugin-python
+          key: ${{ matrix.backend }}
+
+      - name: install dependencies (ubuntu)
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      # PyO3 embeds CPython, so a Python interpreter must be available to build & run.
+      - name: setup python
+        if: matrix.backend == 'pyo3'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: test (pyo3 / default)
+        if: matrix.backend == 'pyo3'
+        working-directory: tauri-plugin-python
+        run: cargo test --all-targets
+
+      # RustPython needs no Python installed; run it single-threaded (each test
+      # spins up a full embedded interpreter on a large-stack worker thread).
+      - name: test (rustpython)
+        if: matrix.backend == 'rustpython'
+        working-directory: tauri-plugin-python
+        run: cargo test --no-default-features --features rustpython -- --test-threads=1

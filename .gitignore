@@ -16,3 +16,5 @@ node_modules/
 dist
 dist-js
 !dist-js/*.iife.js
+.tokensave
+.serena

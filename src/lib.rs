@@ -18,24 +18,101 @@ mod commands;
 mod error;
 mod models;
 use async_py::{self, PyRunner};
-use lazy_static::lazy_static;
 
 pub use error::{Error, Result};
 use models::*;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{atomic::AtomicBool, Mutex},
+    time::Duration,
 };
+
+/// Default per-call timeout applied to the Python worker so a single wedged call
+/// (e.g. a blocking `print()` on a hidden-console Windows build, or a network
+/// call whose own timeout never fires) cannot hang every later call forever.
+/// Generous on purpose so it won't interfere with legitimately long work.
+/// Override via the `TAURI_PLUGIN_PYTHON_TIMEOUT_SECS` env var (`0` disables it).
+const DEFAULT_TIMEOUT_SECS: u64 = 300;
+
+/// Python executed once at startup, before `main.py`, to make stdio safe.
+///
+/// On a Windows release build the console is hidden (`windows_subsystem =
+/// "windows"`), so the standard handles are missing/invalid and a bare
+/// `print()` can raise or abort the whole process (see issues #4/#15/#17). This
+/// wraps `sys.stdout`/`sys.stderr` so writes can never crash the app. It cannot
+/// un-block a write that hangs on a full, unread pipe - the call timeout is the
+/// backstop for that - but it removes the common crash-on-stdio failure mode.
+const PY_STDIO_GUARD: &str = r#"import sys
+
+class _TauriSafeStream:
+    def __init__(self, real):
+        self._real = real
+    def write(self, data):
+        try:
+            if self._real is not None:
+                return self._real.write(data)
+        except Exception:
+            pass
+        return 0
+    def flush(self):
+        try:
+            if self._real is not None:
+                self._real.flush()
+        except Exception:
+            pass
+    def isatty(self):
+        try:
+            return bool(self._real is not None and self._real.isatty())
+        except Exception:
+            return False
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+sys.stdout = _TauriSafeStream(getattr(sys, "stdout", None))
+sys.stderr = _TauriSafeStream(getattr(sys, "stderr", None))
+"#;
+
+/// Builds the shared [`PyRunner`], applying the default per-call timeout unless
+/// the `TAURI_PLUGIN_PYTHON_TIMEOUT_SECS` env var overrides it (`0` = no timeout).
+fn build_runner() -> PyRunner {
+    let runner = PyRunner::new();
+    match std::env::var("TAURI_PLUGIN_PYTHON_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+    {
+        Some(0) => runner,
+        Some(secs) => runner.with_timeout(Duration::from_secs(secs)),
+        None => runner.with_timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS)),
+    }
+}
 
 #[cfg(desktop)]
 use desktop::Python;
 #[cfg(mobile)]
 use mobile::Python;
 
-lazy_static! {
-    static ref INIT_BLOCKED: AtomicBool = false.into();
-    static ref FUNCTION_MAP: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
+#[derive(Default)]
+struct PluginState {
+    init_blocked: AtomicBool,
+    function_map: Mutex<HashSet<String>>,
+}
+
+/// Prepends human-readable context to a failing Python operation and, in debug
+/// builds (`tauri dev`), prints the full detail - including the Python traceback
+/// carried in the underlying error - to stderr so it is visible in the dev
+/// console. The original error message is preserved in the returned error, so it
+/// also still reaches the frontend. In release builds nothing is logged.
+fn py_context<T, E: Into<Error>>(
+    result: std::result::Result<T, E>,
+    context: impl FnOnce() -> String,
+) -> crate::Result<T> {
+    result.map_err(|err| {
+        let msg = format!("{}: {}", context(), err.into());
+        #[cfg(debug_assertions)]
+        eprintln!("[tauri-plugin-python] {msg}");
+        Error::String(msg)
+    })
 }
 
 /// Extensions to [`tauri::App`], [`tauri::AppHandle`] and [`tauri::Window`] to access the python APIs.
@@ -59,57 +136,88 @@ impl<R: Runtime, T: Manager<R> + Sync> crate::PythonExt<R> for T {
         self.state::<PyRunner>().inner()
     }
     async fn run_python(&self, payload: StringRequest) -> crate::Result<StringResponse> {
-        self.runner().run(&payload.value).await?;
+        py_context(self.runner().run(&payload.value).await, || {
+            "Error running Python code (runPython)".into()
+        })?;
         Ok(StringResponse { value: "Ok".into() })
     }
 
     async fn register_function(&self, payload: RegisterRequest) -> crate::Result<StringResponse> {
-        if INIT_BLOCKED.load(std::sync::atomic::Ordering::Relaxed) {
+        let state = self.state::<PluginState>().inner();
+        if state
+            .init_blocked
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
             return Err("Cannot register after function called".into());
         }
-        FUNCTION_MAP
-            .lock()
-            .unwrap()
-            .insert(payload.python_function_call.clone());
-
-        let _tmp = self
-            .runner()
-            .read_variable(&payload.python_function_call)
-            .await?;
+        let _tmp = py_context(
+            self.runner()
+                .read_variable(&payload.python_function_call)
+                .await,
+            || {
+                format!(
+                    "Cannot register '{}': not found in Python (is it defined/imported in main.py?)",
+                    payload.python_function_call
+                )
+            },
+        )?;
         if let Some(num_args) = payload.number_of_args {
+            // Validate the argument count via `inspect.signature`, but only
+            // *reject* the registration on an actual mismatch. If the check
+            // itself can't run - e.g. the RustPython backend can't import
+            // `inspect` - the import failure is swallowed in Python so the call
+            // succeeds and registration proceeds without validation, rather
+            // than failing on an unrelated error.
             let py_analyze_sig = format!(
                 r#"
-from inspect import signature
-if len(signature({}).parameters) != {}:
+try:
+    from inspect import signature
+    _tauri_param_count = len(signature({0}).parameters)
+except Exception:
+    _tauri_param_count = None
+if _tauri_param_count is not None and _tauri_param_count != {1}:
     raise Exception("Function parameters don't match in 'registerFunction'")
 "#,
                 &payload.python_function_call, num_args
             );
-            self.runner()
-                .run(&py_analyze_sig)
-                .await
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "Number of args doesn't match signature of {}.",
-                        payload.python_function_call
-                    )
-                });
+            self.runner().run(&py_analyze_sig).await.map_err(|_| {
+                Error::String(format!(
+                    "Function parameters don't match signature of {}.",
+                    payload.python_function_call
+                ))
+            })?;
         };
+        state
+            .function_map
+            .lock()
+            .unwrap()
+            .insert(payload.python_function_call.clone());
         Ok(StringResponse { value: "Ok".into() })
     }
 
     async fn call_function(&self, payload: RunRequest) -> crate::Result<StringResponse> {
-        INIT_BLOCKED.store(true, std::sync::atomic::Ordering::Relaxed);
+        let state = self.state::<PluginState>().inner();
+        state
+            .init_blocked
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         let function_name = payload.function_name;
-        if FUNCTION_MAP.lock().unwrap().get(&function_name).is_none() {
+        if state
+            .function_map
+            .lock()
+            .unwrap()
+            .get(&function_name)
+            .is_none()
+        {
             return Err(Error::String(format!(
                 "Function {function_name} has not been registered yet"
             )));
         }
-        let py_res = self
-            .runner()
-            .call_function(&function_name, payload.args)
-            .await?;
+        let py_res = py_context(
+            self.runner()
+                .call_function(&function_name, payload.args)
+                .await,
+            || format!("Error calling Python function '{function_name}'"),
+        )?;
         let value = match py_res.as_str() {
             Some(s) => s.to_string(),
             None => py_res.to_string(),
@@ -118,7 +226,9 @@ if len(signature({}).parameters) != {}:
     }
 
     async fn read_variable(&self, payload: StringRequest) -> crate::Result<StringResponse> {
-        let py_res = self.runner().read_variable(&payload.value).await?;
+        let py_res = py_context(self.runner().read_variable(&payload.value).await, || {
+            format!("Error reading Python variable '{}'", payload.value)
+        })?;
         Ok(StringResponse {
             value: py_res.to_string(),
         })
@@ -159,6 +269,11 @@ fn print_path_for_python(path: &PathBuf) -> String {
 }
 
 async fn init_python(runner: &PyRunner, dir: PathBuf) {
+    // Make stdio safe before anything else (incl. main.py) runs - see PY_STDIO_GUARD.
+    runner
+        .run(PY_STDIO_GUARD)
+        .await
+        .expect("ERROR: Error initializing python stdio");
     let sys_pyth_dir = print_path_for_python(&dir);
     let path_import = format!(
         r#"import sys
@@ -173,7 +288,7 @@ sys.path = sys.path + [{}]
     #[cfg(feature = "venv")]
     {
         let venv_dir = dir.join(".venv").join("lib");
-        if Path::exists(venv_dir.as_path()) {
+        if venv_dir.exists() {
             runner
                 .set_venv(venv_dir.as_path())
                 .await
@@ -197,8 +312,9 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
             #[cfg(desktop)]
             let python = desktop::init(app, api)?;
             app.manage(python);
-            let runner = PyRunner::new();
+            let runner = build_runner();
             app.manage(runner);
+            app.manage(PluginState::default());
 
             let mut dir = get_resource_dir(app);
             let mut main_py = dir.join("main.py");
