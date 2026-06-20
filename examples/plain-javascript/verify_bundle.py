@@ -21,25 +21,33 @@ def main() -> int:
         return 1
 
     # tauri copies resources into the bundle next to the app. The exact layout
-    # differs per OS/format (macOS: *.app/Contents/Resources/, Linux/Windows:
-    # next to the binary), so search the whole bundle tree for our resource.
-    bundle_roots = list(target.glob("*/bundle")) + list(target.glob("bundle"))
-    if not bundle_roots:
-        print(f"FAIL: no bundle/ directory under {target.resolve()} - did `tauri build` run?")
+    # differs per OS/format:
+    #   - macOS: *.app/Contents/Resources/ (the .app lives under */bundle/macos)
+    #   - Linux AppImage: */bundle/appimage/*.AppDir/usr/... (unpacked tree)
+    #   - Windows NSIS/MSI: resources are NOT left loose under bundle/ - they get
+    #     packed *inside* the installer. The loose copy lives next to the binary
+    #     at target/release/ instead.
+    # So search the whole target tree for our resource. The original sources live
+    # at the repo root (../src-python), not under target/, so a hit here always
+    # means the bundler emitted it as a resource next to/inside the app.
+    search_roots = list(target.glob("*/bundle")) + list(target.glob("bundle"))
+    search_roots += list(target.glob("*/release")) + list(target.glob("release"))
+    if not search_roots:
+        print(f"FAIL: nothing built under {target.resolve()} - did `tauri build` run?")
         return 1
 
     hits = []
-    for root in bundle_roots:
+    for root in search_roots:
         for main_py in root.rglob("src-python/main.py"):
             # Be tolerant of casing/symlinks; just confirm it's a real file.
             if main_py.is_file():
                 hits.append(main_py)
 
     if not hits:
-        print("FAIL: no bundled 'src-python/main.py' found inside the produced bundle.")
+        print("FAIL: no bundled 'src-python/main.py' found alongside the produced app.")
         print("      The Python sources were not shipped as tauri resources.")
         print("      Check `bundle.resources` in tauri.conf.json.")
-        print(f"      Searched: {[str(r) for r in bundle_roots]}")
+        print(f"      Searched: {[str(r) for r in search_roots]}")
         return 1
 
     print("OK: Python sources are bundled as resources. Found:")
