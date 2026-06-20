@@ -2,8 +2,6 @@
 
 Default permissions for the plugin
 
-#### This default permission set includes the following:
-
 - `allow-call-function`
 - `allow-read-variable`
 

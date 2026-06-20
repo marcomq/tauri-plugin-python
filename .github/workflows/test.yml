@@ -104,3 +104,70 @@ jobs:
         if: matrix.backend == 'rustpython'
         working-directory: tauri-plugin-python
         run: cargo test --no-default-features --features rustpython -- --test-threads=1
+
+  # Deployment-recipe smoke test: build the plain-javascript example as a real
+  # release bundle and verify the Python sources actually ship as tauri
+  # resources (the #1 "works in dev, not in prod" failure). Uses the default
+  # PyO3 backend and the *local* plugin (the example depends on it via path).
+  example-bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: examples/plain-javascript
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: examples/plain-javascript/src-tauri
+
+      # PyO3 links CPython, so a Python interpreter must be present to build & run.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: install dependencies (ubuntu)
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: install frontend dependencies
+        run: npm install
+
+      - name: build example (release bundle)
+        run: npm run tauri build
+
+      - name: verify Python sources are bundled
+        run: python verify_bundle.py src-tauri/target
+
+      # Best-effort startup check (Linux only - GUI apps need a display). If the
+      # bundled binary starts and stays alive, Python initialized without
+      # panicking on startup. The plugin `.expect()`s during init, so a missing
+      # main.py / broken interpreter would crash the process immediately.
+      - name: smoke-launch the built binary (linux)
+        if: matrix.os == 'ubuntu-22.04'
+        working-directory: examples/plain-javascript/src-tauri
+        run: |
+          sudo apt-get install -y xvfb
+          BIN=$(find target/release -maxdepth 1 -type f -perm -u+x ! -name '*.so' | head -n1)
+          echo "Launching: $BIN"
+          xvfb-run -a "$BIN" &
+          PID=$!
+          sleep 8
+          if kill -0 "$PID" 2>/dev/null; then
+            echo "OK: app still running after startup - Python initialized without crashing."
+            kill "$PID" 2>/dev/null || true
+          else
+            echo "FAIL: app exited during startup (Python init likely panicked)."
+            exit 1
+          fi
