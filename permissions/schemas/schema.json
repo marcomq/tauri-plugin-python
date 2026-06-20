@@ -49,7 +49,7 @@
           "minimum": 1.0
         },
         "description": {
-          "description": "Human-readable description of what the permission does. Tauri convention is to use <h4> headings in markdown content for Tauri documentation generation purposes.",
+          "description": "Human-readable description of what the permission does. Tauri convention is to use `<h4>` headings in markdown content for Tauri documentation generation purposes.",
           "type": [
             "string",
             "null"
@@ -111,7 +111,7 @@
           "type": "string"
         },
         "description": {
-          "description": "Human-readable description of what the permission does. Tauri internal convention is to use <h4> headings in markdown content for Tauri documentation generation purposes.",
+          "description": "Human-readable description of what the permission does. Tauri internal convention is to use `<h4>` headings in markdown content for Tauri documentation generation purposes.",
           "type": [
             "string",
             "null"
@@ -297,47 +297,56 @@
         {
           "description": "Enables the call_function command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-call-function"
+          "const": "allow-call-function",
+          "markdownDescription": "Enables the call_function command without any pre-configured scope."
         },
         {
           "description": "Denies the call_function command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-call-function"
+          "const": "deny-call-function",
+          "markdownDescription": "Denies the call_function command without any pre-configured scope."
         },
         {
           "description": "Enables the read_variable command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read-variable"
+          "const": "allow-read-variable",
+          "markdownDescription": "Enables the read_variable command without any pre-configured scope."
         },
         {
           "description": "Denies the read_variable command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read-variable"
+          "const": "deny-read-variable",
+          "markdownDescription": "Denies the read_variable command without any pre-configured scope."
         },
         {
           "description": "Enables the register_function command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-register-function"
+          "const": "allow-register-function",
+          "markdownDescription": "Enables the register_function command without any pre-configured scope."
         },
         {
           "description": "Denies the register_function command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-register-function"
+          "const": "deny-register-function",
+          "markdownDescription": "Denies the register_function command without any pre-configured scope."
         },
         {
           "description": "Enables the run_python command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-run-python"
+          "const": "allow-run-python",
+          "markdownDescription": "Enables the run_python command without any pre-configured scope."
         },
         {
           "description": "Denies the run_python command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-run-python"
+          "const": "deny-run-python",
+          "markdownDescription": "Denies the run_python command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-call-function`\n- `allow-read-variable`",
           "type": "string",
-          "const": "default"
+          "const": "default",
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-call-function`\n- `allow-read-variable`"
         }
       ]
     }
