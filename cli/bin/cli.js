@@ -68,9 +68,11 @@ async function main() {
 }
 
 main().then(
-  (code) => process.exit(code),
+  (code) => {
+    process.exitCode = code;
+  },
   (err) => {
     console.error(`Error: ${err.message}`);
-    process.exit(1);
+    process.exitCode = 1;
   },
 );

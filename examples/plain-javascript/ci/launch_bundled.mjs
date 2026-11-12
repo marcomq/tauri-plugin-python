@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const [exe, report] = process.argv.slice(2);
-const passthrough = ["DISPLAY", "SystemRoot", "SystemDrive", "TEMP", "TMP", "LOCALAPPDATA", "APPDATA", "USERPROFILE", "HOME"];
+const passthrough = ["DISPLAY", "XAUTHORITY", "SystemRoot", "SystemDrive", "TEMP", "TMP", "LOCALAPPDATA", "APPDATA", "USERPROFILE", "HOME"];
 const env = Object.fromEntries(passthrough.filter((k) => process.env[k]).map((k) => [k, process.env[k]]));
 env.E2E_REPORT = report;
 

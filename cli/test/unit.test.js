@@ -16,7 +16,7 @@ import {
   withGitignoreEntry,
   withPythonResources,
 } from "../lib/configs.js";
-import { doctor } from "../lib/doctor.js";
+import { bundlesSrcPython, doctor } from "../lib/doctor.js";
 import { parseSha256Sums, selectAsset } from "../lib/pbs.js";
 import { hostTriple, layout, osOf, parseVersion, pyo3Config, rpaths } from "../lib/platform.js";
 import {
@@ -284,4 +284,29 @@ test("python version is read from src-python/.python-version", () => {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("backend comes from the features, not from comments", () => {
+  assert.equal(pluginBackend('tauri-plugin-python = "0.4" # maybe rustpython later\n'), "pyo3");
+  assert.equal(
+    pluginBackend('tauri-plugin-python = { version = "0.4", default-features = false, features = ["venv", "rustpython"] }\n'),
+    "rustpython",
+  );
+  assert.equal(
+    pluginBackend('[dependencies.tauri-plugin-python]\nversion = "0.4"\nfeatures = ["rustpython"]\n'),
+    "rustpython",
+  );
+});
+
+test("package name is found after array fields", () => {
+  assert.equal(packageName('[package]\nauthors = ["a"]\nname = "app"\n'), "app");
+  assert.equal(packageName('[package]\nversion = "1"\n\n[dependencies]\nname = "x"\n'), undefined);
+});
+
+test("only the whole src-python directory counts as bundled", () => {
+  for (const src of ["src-python", "src-python/", "./src-python/", "src-python/*", "src-python/**/*"]) {
+    assert.ok(bundlesSrcPython({ [src]: src }), src);
+  }
+  assert.ok(!bundlesSrcPython({ "src-python/main.py": "src-python/main.py" }));
+  assert.ok(!bundlesSrcPython({ "src-python-old/": "x" }));
 });

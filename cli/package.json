@@ -16,7 +16,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test \"test/*.test.js\"",
+    "test": "node --test test/unit.test.js",
     "typecheck": "tsc -p jsconfig.json"
   },
   "repository": {

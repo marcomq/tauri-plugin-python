@@ -53,7 +53,7 @@ because the committed `.cargo/config.toml` points to a file in the uncommitted `
 The Python version comes from `src-python/.python-version` (e.g. `3.13`, same format as `uv python pin`). If the
 file is missing, `setup` takes the newest Python that reached its x.y.2 bugfix release (`stable`) and writes its
 minor version there. Commit that file so the team and CI bundle the same version. To change it, edit the file or
-run `setup --python 3.14` (also an exact `3.14.2`, `stable` or `latest`), which updates the file.
+run `npx tauri-plugin-python-cli setup --python 3.14` (also an exact `3.14.2`, `stable` or `latest`), which updates the file.
 
 `tauri dev` now also uses the bundled Python. Check the project:
 
@@ -100,6 +100,7 @@ it. The Python files are in `<App>.app/Contents/Resources/pyembed/python`.
 ## CI (GitHub Actions)
 
 ```yaml
+- uses: actions/checkout@v4
 - uses: actions/setup-node@v4
   with:
     node-version: lts/*

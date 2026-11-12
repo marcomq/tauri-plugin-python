@@ -13,6 +13,7 @@ import {
   withGitignoreEntry,
   withPythonResources,
 } from "./configs.js";
+import { bundlesSrcPython, mergedResources } from "./doctor.js";
 import { download, extract, fetchRelease, isVersionAlias, selectAsset } from "./pbs.js";
 import {
   EMBED_DIR,
@@ -63,7 +64,9 @@ export const DEFAULT_PYTHON = "stable";
 export async function setup(opts, log = console.log) {
   const srcTauri = findSrcTauri(opts.project);
   const cargoToml = readText(path.join(srcTauri, "Cargo.toml"));
-  if (pluginBackend(cargoToml) === "rustpython") {
+  const backend = pluginBackend(cargoToml);
+  if (!backend) throw new Error("tauri-plugin-python is not a dependency in src-tauri/Cargo.toml");
+  if (backend === "rustpython") {
     log("This app uses the RustPython backend, which needs no Python install. Nothing to do.");
     return;
   }
@@ -80,7 +83,8 @@ export async function setup(opts, log = console.log) {
   }
   const release = isVersionAlias(wanted) ? await fetchRelease(opts.release) : undefined;
   const resolved = release ? selectAsset(Object.keys(release.assets), wanted, triple).version : wanted;
-  if (opts.force || !manifest || !matches(manifest, resolved, triple, opts.release)) {
+  const installed = manifest && fs.existsSync(path.join(srcTauri, layout(os, manifest.python).stdlib));
+  if (opts.force || !manifest || !installed || !matches(manifest, resolved, triple, opts.release)) {
     const rel = release ?? (await fetchRelease(opts.release));
     const asset = selectAsset(Object.keys(rel.assets), resolved, triple);
     const archive = await download(rel, asset.name, log);
@@ -115,6 +119,9 @@ export async function setup(opts, log = console.log) {
 
   const mismatch = venvMismatch(srcTauri, manifest.python);
   if (mismatch) log(`Warning: ${mismatch}`);
+  if (!bundlesSrcPython(mergedResources(srcTauri, os))) {
+    log(`Warning: src-python/ is not in bundle.resources of tauri.conf.json; release builds won't find main.py`);
+  }
 
   log("");
   log("Done. The app now uses the bundled Python in dev and release builds.");
@@ -209,6 +216,14 @@ function writeTauriConfigs(srcTauri, os, resources) {
     Object.entries(resources).filter(([src]) => fs.existsSync(path.join(srcTauri, src))),
   );
   const platformFile = path.join(srcTauri, `tauri.${os}.conf.json`);
+  const platformRes = readJson(platformFile)?.bundle?.resources;
+  const manualPlatform = Array.isArray(platformRes) ? unconvertibleResources(platformRes) : [];
+  if (manualPlatform.length) {
+    throw new Error(
+      `bundle.resources in tauri.${os}.conf.json can't be converted to the object form automatically: ` +
+        `${manualPlatform.join(", ")}. Convert them to the "source": "target" form and run setup again`,
+    );
+  }
   /** @param {string} src */
   const isOurs = (src) => src.startsWith(`${PYTHON_DIR}/`);
   writeJson(platformFile, withPythonResources(readJson(platformFile), existing, isOurs));

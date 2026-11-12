@@ -416,6 +416,13 @@ async fn test_error_line_number_not_shifted_by_stdio_guard() {
 // Writes `<name>.py` into a temp dir and puts that dir on `sys.path`, the same
 // way `init_python` does for `src-python`. Module names must be unique per test
 // because PyO3 shares one interpreter (and `sys.modules`) across all tests.
+fn module_entry(name: &str, dir: &tempfile::TempDir) -> PythonEntry {
+    PythonEntry::Module {
+        name: name.into(),
+        dir: dir.path().to_path_buf(),
+    }
+}
+
 async fn module_dir(runner: &PyRunner, name: &str, code: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join(format!("{name}.py")), code).unwrap();
@@ -449,13 +456,13 @@ async fn test_run_entry_file() {
 async fn test_run_entry_module_registers_and_calls_functions() {
     let app = mock_app_handle().await;
     let runner = app.state::<PyRunner>().inner();
-    let _dir = module_dir(
+    let dir = module_dir(
         runner,
         "tauri_entry_mod_call",
         "_tauri_plugin_functions = ['greet']\ndef greet(name):\n  return 'hi ' + name\n",
     )
     .await;
-    run_entry(runner, &PythonEntry::Module("tauri_entry_mod_call".into()))
+    run_entry(runner, &module_entry("tauri_entry_mod_call", &dir))
         .await
         .unwrap();
 
@@ -480,8 +487,8 @@ async fn test_run_entry_module_registers_and_calls_functions() {
 async fn test_run_entry_module_replaces_global_scope() {
     let app = mock_app_handle().await;
     let runner = app.state::<PyRunner>().inner();
-    let _dir = module_dir(runner, "tauri_entry_mod_scope", "mod_var = 1\n").await;
-    run_entry(runner, &PythonEntry::Module("tauri_entry_mod_scope".into()))
+    let dir = module_dir(runner, "tauri_entry_mod_scope", "mod_var = 1\n").await;
+    run_entry(runner, &module_entry("tauri_entry_mod_scope", &dir))
         .await
         .unwrap();
 
@@ -504,12 +511,41 @@ async fn test_run_entry_module_replaces_global_scope() {
 }
 
 #[tokio::test]
+async fn test_run_entry_module_ignores_same_named_module_elsewhere() {
+    let app = mock_app_handle().await;
+    let runner = app.state::<PyRunner>().inner();
+    runner
+        .run("import sys, types\nsys.modules['tauri_entry_mod_shadow'] = types.ModuleType('x')\n")
+        .await
+        .unwrap();
+    let dir = module_dir(
+        runner,
+        "tauri_entry_mod_shadow",
+        "shadow_var = 'entry dir'\n",
+    )
+    .await;
+    run_entry(runner, &module_entry("tauri_entry_mod_shadow", &dir))
+        .await
+        .unwrap();
+    let resp = app
+        .read_variable(StringRequest {
+            value: "shadow_var".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(resp.value, "\"entry dir\"");
+}
+
+#[tokio::test]
 async fn test_run_entry_missing_module_fails() {
     let app = mock_app_handle().await;
     let runner = app.state::<PyRunner>().inner();
     let result = run_entry(
         runner,
-        &PythonEntry::Module("tauri_entry_mod_missing".into()),
+        &PythonEntry::Module {
+            name: "tauri_entry_mod_missing".into(),
+            dir: std::env::temp_dir(),
+        },
     )
     .await;
     assert!(result.is_err());

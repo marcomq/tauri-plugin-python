@@ -72,8 +72,10 @@ export function doctor(opts) {
 
   const os = osOf(hostTriple());
   const resources = mergedResources(srcTauri, os);
-  if (Object.keys(resources).some((src) => /^(\.\/)?src-python\b/.test(src))) {
+  if (bundlesSrcPython(resources)) {
     report.ok("src-python is bundled as resource");
+  } else if (Object.keys(resources).some((src) => /^(\.\/)?src-python\//.test(src))) {
+    report.warn("Only single files of src-python/ are bundled; bundle the whole directory unless that is intended");
   } else {
     report.error("src-python/ is missing in bundle.resources of tauri.conf.json - release builds won't find main.py");
   }
@@ -92,7 +94,7 @@ export function doctor(opts) {
  * @param {Os} os
  * @returns {Record<string, string>}
  */
-function mergedResources(srcTauri, os) {
+export function mergedResources(srcTauri, os) {
   const base = readJson(path.join(srcTauri, "tauri.conf.json"));
   const platformRes = readJson(path.join(srcTauri, `tauri.${os}.conf.json`))?.bundle?.resources;
   const baseRes = base?.bundle?.resources;
@@ -100,6 +102,14 @@ function mergedResources(srcTauri, os) {
   if (!platformRes) return resourcesAsObject(baseRes);
   if (Array.isArray(platformRes) || Array.isArray(baseRes)) return resourcesAsObject(platformRes);
   return { ...baseRes, ...platformRes };
+}
+
+/**
+ * Whether the whole `src-python/` directory is a resource.
+ * @param {Record<string, string>} resources
+ */
+export function bundlesSrcPython(resources) {
+  return Object.keys(resources).some((src) => /^(\.\/)?src-python(\/(\*\*\/?)?\*?)?$/.test(src));
 }
 
 /**

@@ -286,8 +286,8 @@ fn get_resource_dir<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
 enum PythonEntry {
     /// A `main.py` source file, executed with `run_file`.
     File(PathBuf),
-    /// A compiled module (e.g. `nuitka --module main.py`), imported via `run_module`.
-    Module(String),
+    /// A compiled module (e.g. `nuitka --module main.py`) in `dir`, imported via `run_module`.
+    Module { name: String, dir: PathBuf },
 }
 
 const ENTRY_MODULE: &str = "main";
@@ -303,7 +303,10 @@ fn find_entry(dir: &Path) -> Option<PythonEntry> {
         .ok()?
         .flatten()
         .any(|e| e.path().is_file() && is_compiled_entry(&e.file_name().to_string_lossy()))
-        .then(|| PythonEntry::Module(ENTRY_MODULE.into()))
+        .then(|| PythonEntry::Module {
+            name: ENTRY_MODULE.into(),
+            dir: dir.to_path_buf(),
+        })
 }
 
 fn is_compiled_entry(file_name: &str) -> bool {
@@ -317,9 +320,38 @@ fn is_compiled_entry(file_name: &str) -> bool {
 async fn run_entry(runner: &PyRunner, entry: &PythonEntry) -> crate::Result<()> {
     match entry {
         PythonEntry::File(path) => runner.run_file(path).await?,
-        PythonEntry::Module(name) => runner.run_module(name).await?,
+        PythonEntry::Module { name, dir } => {
+            runner.run(&load_module_from(name, dir)).await?;
+            runner.run_module(name).await?
+        }
     }
     Ok(())
+}
+
+/// Loads `name` from `dir` into `sys.modules`, so `run_module` can't pick up a
+/// same-named module from elsewhere on `sys.path` or a stale `sys.modules` entry.
+fn load_module_from(name: &str, dir: &Path) -> String {
+    format!(
+        r#"
+def _tauri_load(name, path):
+    import importlib.machinery, importlib.util, sys
+    spec = importlib.machinery.PathFinder.find_spec(name, [path])
+    if spec is None:
+        raise ModuleNotFoundError(f"No module named '{{name}}' in {{path}}", name=name)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        del sys.modules[name]
+        raise
+try:
+    _tauri_load({name:?}, {path})
+finally:
+    del _tauri_load
+"#,
+        path = print_path_for_python(&dir.to_path_buf())
+    )
 }
 
 fn get_src_python_dir() -> PathBuf {

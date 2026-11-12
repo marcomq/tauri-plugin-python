@@ -62,8 +62,8 @@ export function productName(tauriConf, cargoToml) {
  * @returns {string | undefined}
  */
 export function packageName(cargoToml) {
-  const pkg = /^\[package\][^[]*?^\s*name\s*=\s*"([^"]+)"/ms.exec(cargoToml ?? "");
-  return pkg?.[1];
+  const section = /^\[package\][^\n]*\n([\s\S]*?)(?=^\s*\[|(?![\s\S]))/m.exec(cargoToml ?? "")?.[1];
+  return /^\s*name\s*=\s*"([^"]+)"/m.exec(section ?? "")?.[1];
 }
 
 /**
@@ -78,7 +78,8 @@ export function pluginBackend(cargoToml) {
     /^\s*tauri-plugin-python\s*=\s*(.*)$/m.exec(text)?.[1] ??
     /^\[dependencies\.tauri-plugin-python\][^\n]*\n((?:(?!\s*\[).*(?:\n|$))*)/m.exec(text)?.[1];
   if (spec === undefined) return undefined;
-  return /rustpython/.test(spec) ? "rustpython" : "pyo3";
+  const features = /features\s*=\s*\[([^\]]*)\]/.exec(spec.replace(/#.*$/gm, ""))?.[1] ?? "";
+  return /["']rustpython["']/.test(features) ? "rustpython" : "pyo3";
 }
 
 /**

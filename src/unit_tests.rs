@@ -312,7 +312,10 @@ mod entry_detection {
             let dir = dir_with(&[file]);
             assert_eq!(
                 find_entry(dir.path()),
-                Some(PythonEntry::Module("main".into())),
+                Some(PythonEntry::Module {
+                    name: "main".into(),
+                    dir: dir.path().to_path_buf()
+                }),
                 "{file}"
             );
         }
