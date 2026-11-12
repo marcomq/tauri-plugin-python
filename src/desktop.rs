@@ -4,7 +4,7 @@
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
 use serde::de::DeserializeOwned;
-use tauri::{plugin::PluginApi, AppHandle, Runtime};
+use tauri::{AppHandle, Runtime, plugin::PluginApi};
 
 /// Access to the python plugin APIs.
 pub struct Python<R: Runtime>(AppHandle<R>);

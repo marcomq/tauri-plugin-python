@@ -1,0 +1,36 @@
+{
+  "name": "tauri-plugin-python-cli",
+  "version": "0.4.0",
+  "author": "Marco Mengelkoch",
+  "description": "Bundle a standalone Python with a tauri-plugin-python app and check the deployment setup.",
+  "type": "module",
+  "bin": {
+    "tauri-plugin-python-cli": "bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/unit.test.js",
+    "typecheck": "tsc -p jsconfig.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marcomq/tauri-plugin-python.git",
+    "directory": "cli"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/marcomq/tauri-plugin-python#readme",
+  "bugs": {
+    "url": "https://github.com/marcomq/tauri-plugin-python/issues"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^6.0.3"
+  }
+}

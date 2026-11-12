@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-python-api",
-  "version": "0.3.9",
+  "version": "0.4.0",
   "author": "Marco Mengelkoch",
   "description": "Javascript package for tauri 2 python plugin.",
   "type": "module",
