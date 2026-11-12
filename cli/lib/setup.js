@@ -113,6 +113,9 @@ export async function setup(opts, log = console.log) {
 
   fs.writeFileSync(path.join(srcTauri, PYO3_CONFIG), pyo3Config(srcTauri, os, manifest.python));
   writeCargoConfig(srcTauri, productName(readJson(path.join(srcTauri, "tauri.conf.json")), cargoToml));
+  for (const [src, dest] of Object.entries(l.copies)) {
+    if (fs.existsSync(path.join(srcTauri, src))) fs.copyFileSync(path.join(srcTauri, src), path.join(srcTauri, dest));
+  }
   writeTauriConfigs(srcTauri, os, l.resources);
   const gitignore = path.join(srcTauri, ".gitignore");
   fs.writeFileSync(gitignore, withGitignoreEntry(readText(gitignore), `/${EMBED_DIR}/`));
@@ -225,6 +228,6 @@ function writeTauriConfigs(srcTauri, os, resources) {
     );
   }
   /** @param {string} src */
-  const isOurs = (src) => src.startsWith(`${PYTHON_DIR}/`);
+  const isOurs = (src) => src.startsWith(`${EMBED_DIR}/`);
   writeJson(platformFile, withPythonResources(readJson(platformFile), existing, isOurs));
 }

@@ -22,6 +22,7 @@ import path from "node:path";
  * @property {string} stdlib    stdlib directory, used to validate the install
  * @property {string[]} prune   unneeded parts, relative to the python dir (`*` allowed)
  * @property {Record<string, string>} resources  tauri resources: source -> target
+ * @property {Record<string, string>} copies     files copied by setup: source -> copy
  */
 
 export const EMBED_DIR = "pyembed";
@@ -94,8 +95,13 @@ export function layout(os, version) {
       prune: ["Lib/test", "Lib/idlelib", "Lib/tkinter", "Lib/turtledemo", "tcl", "DLLs/_tkinter.pyd"],
       resources: {
         [`${PYTHON_DIR}/`]: `${PYTHON_DIR}/`,
-        [`${PYTHON_DIR}/${dll}`]: dll,
-        [`${PYTHON_DIR}/python${major}.dll`]: `python${major}.dll`,
+        [`${EMBED_DIR}/${dll}`]: dll,
+        [`${EMBED_DIR}/python${major}.dll`]: `python${major}.dll`,
+      },
+      // The NSIS bundler takes each source file once, and the python dir already contains the DLLs.
+      copies: {
+        [`${PYTHON_DIR}/${dll}`]: `${EMBED_DIR}/${dll}`,
+        [`${PYTHON_DIR}/python${major}.dll`]: `${EMBED_DIR}/python${major}.dll`,
       },
     };
   }
@@ -124,6 +130,7 @@ export function layout(os, version) {
       [`${PYTHON_DIR}/lib/python${xy}/`]: `${PYTHON_DIR}/lib/python${xy}/`,
       [`${PYTHON_DIR}/lib/${libpython}`]: `${PYTHON_DIR}/lib/${libpython}`,
     },
+    copies: {},
   };
 }
 

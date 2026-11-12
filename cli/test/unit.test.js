@@ -64,8 +64,9 @@ test("windows layout puts the DLLs next to the exe", () => {
   assert.equal(win.python, "pyembed/python/python.exe");
   assert.equal(win.libName, "python313");
   assert.equal(win.libDir, "pyembed/python/libs");
-  assert.equal(win.resources["pyembed/python/python313.dll"], "python313.dll");
-  assert.equal(win.resources["pyembed/python/python3.dll"], "python3.dll");
+  assert.equal(win.resources["pyembed/python313.dll"], "python313.dll");
+  assert.equal(win.resources["pyembed/python3.dll"], "python3.dll");
+  assert.equal(win.copies["pyembed/python/python313.dll"], "pyembed/python313.dll");
   assert.equal(win.resources["pyembed/python/"], "pyembed/python/");
 });
 
