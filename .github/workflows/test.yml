@@ -243,9 +243,19 @@ jobs:
               dpkg -x $BUNDLE/deb/*.deb "$DEST"
               EXE=$(ls "$DEST"/usr/bin/* | head -n1) ;;
             Windows)
-              WIN_DEST=$(cygpath -w "$DEST")
-              $BUNDLE/nsis/*-setup.exe //S "//D=$WIN_DEST"
-              EXE=$(ls "$DEST"/*.exe | grep -vi uninstall | head -n1) ;;
+              # Backslashes of $RUNNER_TEMP would act as glob escapes in Git Bash.
+              DEST="$(cygpath -u "$RUNNER_TEMP")/installed"
+              $BUNDLE/nsis/*-setup.exe //S "//D=$(cygpath -w "$DEST")"
+              for _ in $(seq 30); do
+                EXE=$(ls "$DEST"/*.exe 2>/dev/null | grep -vi uninstall | head -n1 || true)
+                [ -n "$EXE" ] && break
+                sleep 2
+              done
+              if [ -z "$EXE" ]; then
+                echo "No exe in $DEST"; ls -la "$DEST" "$(cygpath -u "$LOCALAPPDATA")"/plain* || true
+                exit 1
+              fi
+              EXE=$(cygpath -w "$EXE") ;;
           esac
           # The source copy must not be reachable as fallback.
           rm -rf src-tauri/pyembed
