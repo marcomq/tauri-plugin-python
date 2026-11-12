@@ -4,9 +4,9 @@
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
 use tauri::{
+    AppHandle, Manager, Runtime,
     path::BaseDirectory,
     plugin::{Builder, TauriPlugin},
-    AppHandle, Manager, Runtime,
 };
 
 #[cfg(desktop)]
@@ -22,9 +22,9 @@ use async_py::{self, PyRunner};
 pub use error::{Error, Result};
 use models::*;
 use std::{
-    collections::HashSet,
-    path::PathBuf,
-    sync::{atomic::AtomicBool, Mutex},
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::{Mutex, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -77,13 +77,22 @@ sys.stderr = _TauriSafeStream(getattr(sys, "stderr", None))
 /// the `TAURI_PLUGIN_PYTHON_TIMEOUT_SECS` env var overrides it (`0` = no timeout).
 fn build_runner() -> PyRunner {
     let runner = PyRunner::new();
-    match std::env::var("TAURI_PLUGIN_PYTHON_TIMEOUT_SECS")
-        .ok()
-        .and_then(|v| v.trim().parse::<u64>().ok())
-    {
-        Some(0) => runner,
-        Some(secs) => runner.with_timeout(Duration::from_secs(secs)),
-        None => runner.with_timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS)),
+    match call_timeout(
+        std::env::var("TAURI_PLUGIN_PYTHON_TIMEOUT_SECS")
+            .ok()
+            .as_deref(),
+    ) {
+        Some(timeout) => runner.with_timeout(timeout),
+        None => runner,
+    }
+}
+
+/// Resolves the per-call timeout from the raw env var value; `None` disables it.
+fn call_timeout(env_value: Option<&str>) -> Option<Duration> {
+    match env_value.and_then(|v| v.trim().parse::<u64>().ok()) {
+        Some(0) => None,
+        Some(secs) => Some(Duration::from_secs(secs)),
+        None => Some(Duration::from_secs(DEFAULT_TIMEOUT_SECS)),
     }
 }
 
@@ -95,7 +104,8 @@ use mobile::Python;
 #[derive(Default)]
 struct PluginState {
     init_blocked: AtomicBool,
-    function_map: Mutex<HashSet<String>>,
+    /// Registered functions, mapped to whether they are `async def` coroutine functions.
+    function_map: Mutex<HashMap<String, bool>>,
 }
 
 /// Prepends human-readable context to a failing Python operation and, in debug
@@ -115,8 +125,9 @@ fn py_context<T, E: Into<Error>>(
     })
 }
 
+// `async_trait` expands to `#[must_use]` on functions returning a boxed future.
 /// Extensions to [`tauri::App`], [`tauri::AppHandle`] and [`tauri::Window`] to access the python APIs.
-
+#[allow(clippy::double_must_use)]
 #[async_trait::async_trait]
 pub trait PythonExt<R: Runtime> {
     fn python(&self) -> &Python<R>;
@@ -164,10 +175,8 @@ impl<R: Runtime, T: Manager<R> + Sync> crate::PythonExt<R> for T {
         if let Some(num_args) = payload.number_of_args {
             // Validate the argument count via `inspect.signature`, but only
             // *reject* the registration on an actual mismatch. If the check
-            // itself can't run - e.g. the RustPython backend can't import
-            // `inspect` - the import failure is swallowed in Python so the call
-            // succeeds and registration proceeds without validation, rather
-            // than failing on an unrelated error.
+            // itself can't run (e.g. builtins without a signature), registration
+            // proceeds without validation.
             let py_analyze_sig = format!(
                 r#"
 try:
@@ -178,7 +187,7 @@ except Exception:
 if _tauri_param_count is not None and _tauri_param_count != {1}:
     raise Exception("Function parameters don't match in 'registerFunction'")
 "#,
-                &payload.python_function_call, num_args
+                payload.python_function_call, num_args
             );
             self.runner().run(&py_analyze_sig).await.map_err(|_| {
                 Error::String(format!(
@@ -187,11 +196,15 @@ if _tauri_param_count is not None and _tauri_param_count != {1}:
                 ))
             })?;
         };
+        let is_async = py_context(
+            is_coroutine_function(self.runner(), &payload.python_function_call).await,
+            || format!("Cannot register '{}'", payload.python_function_call),
+        )?;
         state
             .function_map
             .lock()
             .unwrap()
-            .insert(payload.python_function_call.clone());
+            .insert(payload.python_function_call.clone(), is_async);
         Ok(StringResponse { value: "Ok".into() })
     }
 
@@ -201,23 +214,29 @@ if _tauri_param_count is not None and _tauri_param_count != {1}:
             .init_blocked
             .store(true, std::sync::atomic::Ordering::Relaxed);
         let function_name = payload.function_name;
-        if state
+        let is_async = state
             .function_map
             .lock()
             .unwrap()
             .get(&function_name)
-            .is_none()
-        {
+            .copied();
+        let Some(is_async) = is_async else {
             return Err(Error::String(format!(
                 "Function {function_name} has not been registered yet"
             )));
-        }
-        let py_res = py_context(
+        };
+        let call = if is_async {
+            self.runner()
+                .call_async_function(&function_name, payload.args)
+                .await
+        } else {
             self.runner()
                 .call_function(&function_name, payload.args)
-                .await,
-            || format!("Error calling Python function '{function_name}'"),
-        )?;
+                .await
+        };
+        let py_res = py_context(call, || {
+            format!("Error calling Python function '{function_name}'")
+        })?;
         let value = match py_res.as_str() {
             Some(s) => s.to_string(),
             None => py_res.to_string(),
@@ -235,14 +254,106 @@ if _tauri_param_count is not None and _tauri_param_count != {1}:
     }
 }
 
+/// `async def` functions are awaited via `call_async_function` instead of
+/// returning an un-awaited coroutine. Falls back to the code flags when
+/// `inspect` is unavailable.
+async fn is_coroutine_function(
+    runner: &PyRunner,
+    name: &str,
+) -> std::result::Result<bool, async_py::PyRunnerError> {
+    let check = format!(
+        r#"
+try:
+    from inspect import iscoroutinefunction as _tauri_iscoro
+except Exception:
+    def _tauri_iscoro(f):
+        return bool(getattr(getattr(f, "__code__", None), "co_flags", 0) & 0x80)
+_tauri_is_async = bool(_tauri_iscoro({name}))
+"#
+    );
+    runner.run(&check).await?;
+    Ok(runner.read_variable("_tauri_is_async").await? == serde_json::Value::Bool(true))
+}
+
 fn get_resource_dir<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
     app.path()
         .resolve("src-python", BaseDirectory::Resource)
         .unwrap_or_default()
 }
 
+/// The Python entry point of the app inside a `src-python` directory.
+#[derive(Debug, PartialEq)]
+enum PythonEntry {
+    /// A `main.py` source file, executed with `run_file`.
+    File(PathBuf),
+    /// A compiled module (e.g. `nuitka --module main.py`), imported via `run_module`.
+    Module(String),
+}
+
+const ENTRY_MODULE: &str = "main";
+
+/// Prefers `main.py`; otherwise falls back to a compiled `main` module
+/// (`main.*.so`, `main.*.pyd` or `main.pyc`) as produced by Nuitka or Cython.
+fn find_entry(dir: &Path) -> Option<PythonEntry> {
+    let main_py = dir.join("main.py");
+    if main_py.is_file() {
+        return Some(PythonEntry::File(main_py));
+    }
+    std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .any(|e| e.path().is_file() && is_compiled_entry(&e.file_name().to_string_lossy()))
+        .then(|| PythonEntry::Module(ENTRY_MODULE.into()))
+}
+
+fn is_compiled_entry(file_name: &str) -> bool {
+    let prefix = format!("{ENTRY_MODULE}.");
+    file_name.starts_with(&prefix)
+        && [".so", ".pyd", ".pyc"]
+            .iter()
+            .any(|ext| file_name.ends_with(ext))
+}
+
+async fn run_entry(runner: &PyRunner, entry: &PythonEntry) -> crate::Result<()> {
+    match entry {
+        PythonEntry::File(path) => runner.run_file(path).await?,
+        PythonEntry::Module(name) => runner.run_module(name).await?,
+    }
+    Ok(())
+}
+
 fn get_src_python_dir() -> PathBuf {
     std::env::current_dir().unwrap().join("src-python")
+}
+
+/// Uses a bundled standalone Python (`pyembed/python`) if the app ships one.
+#[cfg(all(feature = "pyo3", not(feature = "rustpython")))]
+fn init_embedded_python<R: Runtime>(app: &AppHandle<R>) -> crate::Result<()> {
+    const EMBEDDED_PYTHON_DIR: &str = "pyembed/python";
+    let candidates = [
+        app.path()
+            .resolve(EMBEDDED_PYTHON_DIR, BaseDirectory::Resource)
+            .ok(),
+        // Release builds must not pick up a Python from wherever they are started.
+        std::env::current_dir()
+            .ok()
+            .filter(|_| cfg!(debug_assertions))
+            .map(|dir| dir.join(EMBEDDED_PYTHON_DIR)),
+    ];
+    let Some(home) = candidates
+        .into_iter()
+        .flatten()
+        .find(|dir| async_py::is_python_home(dir))
+    else {
+        return Ok(());
+    };
+    if !async_py::init_python_home(&home)? {
+        eprintln!(
+            "[tauri-plugin-python] Warning: Python was initialized before the plugin; bundled Python at '{}' is not used",
+            home.display()
+        );
+    }
+    Ok(())
 }
 
 /// Initializes the plugin with functions
@@ -287,12 +398,14 @@ sys.path = sys.path + [{}]
         .expect("ERROR: Error setting python path");
     #[cfg(feature = "venv")]
     {
-        let venv_dir = dir.join(".venv").join("lib");
-        if venv_dir.exists() {
-            runner
-                .set_venv(venv_dir.as_path())
-                .await
-                .expect("ERROR: Error setting venv for python");
+        let venv_dir = dir.join(".venv");
+        if venv_dir.is_dir()
+            && let Err(e) = runner.set_venv(&venv_dir).await
+        {
+            eprintln!(
+                "[tauri-plugin-python] Warning: '{}' not loaded, it doesn't match this Python: {e}",
+                venv_dir.display()
+            );
         }
     }
 }
@@ -312,26 +425,31 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
             #[cfg(desktop)]
             let python = desktop::init(app, api)?;
             app.manage(python);
+            #[cfg(all(feature = "pyo3", not(feature = "rustpython")))]
+            init_embedded_python(app)?;
             let runner = build_runner();
             app.manage(runner);
             app.manage(PluginState::default());
 
             let mut dir = get_resource_dir(app);
-            let mut main_py = dir.join("main.py");
-            if !main_py.exists() {
+            let mut entry = find_entry(&dir);
+            if entry.is_none() {
                 println!(
                     "Warning: 'src-tauri/main.py' seems not to be registered in 'tauri.conf.json'"
                 );
-                dir = get_src_python_dir();
-                main_py = dir.join("main.py");
+                // Release builds must not run Python code from wherever they are started.
+                if cfg!(debug_assertions) {
+                    dir = get_src_python_dir();
+                    entry = find_entry(&dir);
+                }
             }
+            let entry = entry.unwrap_or_else(|| PythonEntry::File(dir.join("main.py")));
             tokio::runtime::Runtime::new()
                 .unwrap()
                 .block_on(async move {
                     let runner = app.state::<PyRunner>().inner();
                     init_python(runner, dir.to_path_buf()).await;
-                    runner
-                        .run_file(main_py.as_path())
+                    run_entry(runner, &entry)
                         .await
                         .expect("ERROR: Error running 'src-tauri/main.py'");
                     register_python_functions(
@@ -366,3 +484,5 @@ async fn register_python_functions<R: Runtime>(app: &AppHandle<R>, python_functi
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod unit_tests;

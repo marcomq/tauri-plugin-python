@@ -4,7 +4,7 @@
 //  git clone https://github.com/marcomq/tauri-plugin-python
 use async_py::PyRunnerError;
 
-use serde::{ser::Serializer, Serialize};
+use serde::{Serialize, ser::Serializer};
 
 pub type Result<T> = std::result::Result<T, Error>;
 

@@ -5,8 +5,8 @@
 
 use super::*;
 use tauri::{
-    test::{self, MockRuntime},
     AppHandle,
+    test::{self, MockRuntime},
 };
 
 /// Creates a mock Tauri app and initializes the PyRunner state.
@@ -108,10 +108,12 @@ async fn test_register_after_call_fails() {
     };
     let result = app.register_function(second_register_payload).await;
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Cannot register after function called"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Cannot register after function called")
+    );
 }
 
 #[tokio::test]
@@ -169,43 +171,18 @@ async fn test_register_function_arg_mismatch_returns_error_instead_of_panicking(
 
     let result = join_result.unwrap();
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Function parameters don't match"));
-}
-
-// The rustpython backend can't import `inspect`, so signature validation can't
-// run; registration of an existing function must still succeed (graceful skip)
-// rather than failing on the unrelated import error.
-#[cfg(feature = "rustpython")]
-#[tokio::test]
-async fn test_rustpython_register_skips_signature_check() {
-    let app = mock_app_handle().await;
-    // Deliberately wrong arg count: under pyo3 this would be rejected, but with
-    // no `inspect` available the check is skipped and registration succeeds.
-    app.register_function(RegisterRequest {
-        python_function_call: "my_func".into(),
-        number_of_args: Some(1),
-    })
-    .await
-    .expect("registration should succeed when the signature check can't run");
-
-    // And the function is genuinely usable afterwards.
-    let response = app
-        .call_function(RunRequest {
-            function_name: "my_func".into(),
-            args: vec![serde_json::json!(10), serde_json::json!(20)],
-        })
-        .await
-        .unwrap();
-    assert_eq!(response.value, "30");
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Function parameters don't match")
+    );
 }
 
 // Guards the insert-before-validate bug across both backends: a registration
 // that fails (here, because the function doesn't exist) must not leave the name
 // marked as registered. Uses a nonexistent name so the failure path is backend
-// independent (doesn't rely on signature validation, which rustpython skips).
+// independent (doesn't rely on signature validation).
 #[tokio::test]
 async fn test_failed_registration_does_not_allow_call() {
     let app = mock_app_handle().await;
@@ -227,10 +204,12 @@ async fn test_failed_registration_does_not_allow_call() {
         call_result.is_err(),
         "calling a function whose registration failed should error: {call_result:?}"
     );
-    assert!(call_result
-        .unwrap_err()
-        .to_string()
-        .contains("has not been registered yet"));
+    assert!(
+        call_result
+            .unwrap_err()
+            .to_string()
+            .contains("has not been registered yet")
+    );
 }
 
 #[tokio::test]
@@ -432,4 +411,258 @@ async fn test_error_line_number_not_shifted_by_stdio_guard() {
         err.contains("line 3"),
         "the raise on line 3 must report line 3, not be shifted by the guard: {err}"
     );
+}
+
+// Writes `<name>.py` into a temp dir and puts that dir on `sys.path`, the same
+// way `init_python` does for `src-python`. Module names must be unique per test
+// because PyO3 shares one interpreter (and `sys.modules`) across all tests.
+async fn module_dir(runner: &PyRunner, name: &str, code: &str) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join(format!("{name}.py")), code).unwrap();
+    init_python(runner, dir.path().to_path_buf()).await;
+    dir
+}
+
+#[tokio::test]
+async fn test_run_entry_file() {
+    let app = mock_app_handle().await;
+    let runner = app.state::<PyRunner>().inner();
+    let dir = tempfile::tempdir().unwrap();
+    let main_py = dir.path().join("main.py");
+    std::fs::write(&main_py, "entry_file_var = 'from file'\n").unwrap();
+    run_entry(runner, &PythonEntry::File(main_py))
+        .await
+        .unwrap();
+    let resp = app
+        .read_variable(StringRequest {
+            value: "entry_file_var".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(resp.value, "\"from file\"");
+}
+
+// Mirrors the Nuitka entry point (`nuitka --module main.py`): the module is
+// imported instead of executed as a file. A pure .py module exercises the same
+// `run_module` path without requiring Nuitka in the test environment.
+#[tokio::test]
+async fn test_run_entry_module_registers_and_calls_functions() {
+    let app = mock_app_handle().await;
+    let runner = app.state::<PyRunner>().inner();
+    let _dir = module_dir(
+        runner,
+        "tauri_entry_mod_call",
+        "_tauri_plugin_functions = ['greet']\ndef greet(name):\n  return 'hi ' + name\n",
+    )
+    .await;
+    run_entry(runner, &PythonEntry::Module("tauri_entry_mod_call".into()))
+        .await
+        .unwrap();
+
+    let functions = runner
+        .read_variable("_tauri_plugin_functions")
+        .await
+        .unwrap();
+    let functions: Vec<String> = serde_json::from_value(functions).unwrap();
+    register_python_functions(&app, functions).await;
+
+    let resp = app
+        .call_function(RunRequest {
+            function_name: "greet".into(),
+            args: vec![serde_json::json!("nuitka")],
+        })
+        .await
+        .unwrap();
+    assert_eq!(resp.value, "hi nuitka");
+}
+
+#[tokio::test]
+async fn test_run_entry_module_replaces_global_scope() {
+    let app = mock_app_handle().await;
+    let runner = app.state::<PyRunner>().inner();
+    let _dir = module_dir(runner, "tauri_entry_mod_scope", "mod_var = 1\n").await;
+    run_entry(runner, &PythonEntry::Module("tauri_entry_mod_scope".into()))
+        .await
+        .unwrap();
+
+    let mod_var = app
+        .read_variable(StringRequest {
+            value: "mod_var".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(mod_var.value, "1");
+    let old_var = app
+        .read_variable(StringRequest {
+            value: "my_var".into(),
+        })
+        .await;
+    assert!(
+        old_var.is_err(),
+        "names from before run_module must be gone"
+    );
+}
+
+#[tokio::test]
+async fn test_run_entry_missing_module_fails() {
+    let app = mock_app_handle().await;
+    let runner = app.state::<PyRunner>().inner();
+    let result = run_entry(
+        runner,
+        &PythonEntry::Module("tauri_entry_mod_missing".into()),
+    )
+    .await;
+    assert!(result.is_err());
+    // A failed import keeps the previous scope.
+    let resp = app
+        .read_variable(StringRequest {
+            value: "my_var".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(resp.value, "123");
+}
+
+async fn register_async_fn(app: &AppHandle<MockRuntime>) {
+    let runner = app.state::<PyRunner>().inner();
+    runner
+        .run("async def coro_fn(x):\n  return x * 2")
+        .await
+        .unwrap();
+    app.register_function(RegisterRequest {
+        python_function_call: "coro_fn".into(),
+        number_of_args: Some(1),
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn test_async_def_is_detected_on_registration() {
+    let app = mock_app_handle().await;
+    register_async_fn(&app).await;
+    let state = app.state::<PluginState>();
+    let map = state.function_map.lock().unwrap();
+    assert_eq!(map.get("coro_fn"), Some(&true));
+}
+
+#[tokio::test]
+async fn test_sync_def_is_not_async() {
+    let app = mock_app_handle().await;
+    app.register_function(RegisterRequest {
+        python_function_call: "my_func".into(),
+        number_of_args: None,
+    })
+    .await
+    .unwrap();
+    let state = app.state::<PluginState>();
+    assert_eq!(
+        state.function_map.lock().unwrap().get("my_func"),
+        Some(&false)
+    );
+}
+
+#[cfg(all(feature = "pyo3", not(feature = "rustpython")))]
+#[tokio::test]
+async fn test_call_async_def_is_awaited() {
+    let app = mock_app_handle().await;
+    register_async_fn(&app).await;
+    let resp = app
+        .call_function(RunRequest {
+            function_name: "coro_fn".into(),
+            args: vec![serde_json::json!(21)],
+        })
+        .await
+        .unwrap();
+    assert_eq!(resp.value, "42");
+}
+
+#[cfg(feature = "rustpython")]
+#[tokio::test]
+async fn test_call_async_def_reports_unsupported_on_rustpython() {
+    let app = mock_app_handle().await;
+    register_async_fn(&app).await;
+    let err = app
+        .call_function(RunRequest {
+            function_name: "coro_fn".into(),
+            args: vec![serde_json::json!(21)],
+        })
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("not supported"), "{err}");
+}
+
+#[cfg(feature = "rustpython")]
+mod rustpython_stdlib_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn frozen_stdlib_and_codecs_work() {
+        let runner = PyRunner::new();
+        runner
+            .run(
+                "import json, typing, inspect, dataclasses, collections, re, logging\n\
+                 assert json.loads('[1]') == [1]\n\
+                 assert 'é'.encode('latin1') == b'\\xe9'\n\
+                 assert b'\\x80'.decode('cp1252') == '\\u20ac'",
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn signature_check_works_with_stdlib() {
+        let app = mock_app_handle().await;
+        let result = app
+            .register_function(RegisterRequest {
+                python_function_call: "my_func".into(),
+                number_of_args: Some(1),
+            })
+            .await;
+        assert!(
+            result.is_err(),
+            "inspect is available, mismatch must be rejected"
+        );
+    }
+}
+
+#[cfg(all(feature = "venv", feature = "pyo3", not(feature = "rustpython")))]
+#[tokio::test]
+async fn test_init_python_loads_src_python_venv() {
+    let runner = PyRunner::new();
+    runner.run("import sys").await.unwrap();
+    let version = runner
+        .eval("f'python{sys.version_info.major}.{sys.version_info.minor}'")
+        .await
+        .unwrap();
+    let src_python = tempfile::tempdir().unwrap();
+    let site_packages = if cfg!(windows) {
+        src_python.path().join(".venv/Lib/site-packages")
+    } else {
+        src_python
+            .path()
+            .join(".venv/lib")
+            .join(version.as_str().unwrap())
+            .join("site-packages")
+    };
+    std::fs::create_dir_all(&site_packages).unwrap();
+    std::fs::write(site_packages.join("tauri_venv_probe.py"), "VALUE = 7\n").unwrap();
+
+    init_python(&runner, src_python.path().to_path_buf()).await;
+    runner
+        .run("import tauri_venv_probe\nvenv_value = tauri_venv_probe.VALUE")
+        .await
+        .unwrap();
+    assert_eq!(runner.read_variable("venv_value").await.unwrap(), 7);
+}
+
+#[cfg(all(feature = "venv", feature = "pyo3", not(feature = "rustpython")))]
+#[tokio::test]
+async fn test_init_python_survives_venv_of_other_python_version() {
+    let runner = PyRunner::new();
+    let src_python = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(src_python.path().join(".venv/lib/python2.7/site-packages")).unwrap();
+    init_python(&runner, src_python.path().to_path_buf()).await;
+    runner.run("x = 1").await.unwrap();
 }

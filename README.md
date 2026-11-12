@@ -1,11 +1,12 @@
 # Tauri Plugin Python
 
 This [tauri](https://v2.tauri.app/) v2 plugin is supposed to make it easy to use Python as backend code.  
-It can use either [PyO3](https://pyo3.rs) (the default) or [RustPython](https://github.com/RustPython/RustPython) as the interpreter to call python from rust.
+It can use either [PyO3](https://pyo3.rs) (the default) or [RustPython](https://github.com/RustPython/RustPython) as the interpreter to call python from rust.  
+The companion [`tauri-plugin-python-cli`](#deployment-tool-tauri-plugin-python-cli) bundles a standalone Python into your app, so releases run on machines without Python.
 
-> **Requirements:** Tauri **v2**, a recent stable Rust toolchain, and (for the default PyO3 backend) a CPython
-> interpreter available when you build and run. The [example apps](#example-app) are the canonical, always-current
-> reference if anything below drifts out of date.
+> **Requirements:** Tauri **v2**, a recent stable Rust toolchain and, for the default PyO3 backend, a CPython
+> interpreter on the development machine. Released apps ship their own Python, see [Deployment](#deployment).
+> The [example apps](#example-app) are the canonical, always-current reference if anything below drifts out of date.
 
 ## Quick start
 
@@ -36,9 +37,27 @@ import { callFunction } from 'tauri-plugin-python-api'
 console.log(await callFunction("greet_python", ["world"])) // "Hello world from Python"
 ```
 
-That's it for development. Before you ship a release, read [Deployment](#deployment) — especially the
-[resource-bundling](#deployment) rules and (for PyO3) how to provide `libpython` on the target machine. If you want a
-single self-contained binary with no Python on the target, see [RustPython](#switch-from-pyo3-to-rustpython).
+That's it for development. Before you ship a release, bundle a standalone Python with the
+[CLI](#pyo3--cpython) and read [Deployment](#deployment):
+```sh
+npx tauri-plugin-python-cli setup
+```
+If you want a single self-contained binary without any Python files, see [RustPython](#switch-from-pyo3-to-rustpython).
+
+## Deployment tool: tauri-plugin-python-cli
+
+[`tauri-plugin-python-cli`](https://github.com/marcomq/tauri-plugin-python/tree/main/cli) is an npm package that takes care of the hard part of shipping a
+PyO3 app: a Python that runs on the user's machine. It needs Node.js 18+ and nothing else; run it in your project
+root or in `src-tauri`:
+
+| Command | What it does |
+| --- | --- |
+| `npx tauri-plugin-python-cli setup` | downloads a relocatable Python into `src-tauri/pyembed/`, installs `src-python/requirements.txt` into it and configures cargo and tauri to bundle and link it |
+| `npx tauri-plugin-python-cli doctor` | checks entry point, resources, bundled Python and, after a build, which `libpython` the binary loads; `--fix` repairs the RustPython lockfile issue |
+| `npx tauri-plugin-python-cli sign` | macOS: signs the bundled Python for notarization |
+
+Details in [Deployment → PyO3 / CPython](#pyo3--cpython) and in the step-by-step guides for
+[macOS](https://github.com/marcomq/tauri-plugin-python/blob/main/docs/deploy-macos.md), [Linux](https://github.com/marcomq/tauri-plugin-python/blob/main/docs/deploy-linux.md) and [Windows](https://github.com/marcomq/tauri-plugin-python/blob/main/docs/deploy-windows.md).
 
 ## Choosing an interpreter: PyO3 vs. RustPython
 
@@ -48,23 +67,24 @@ This is the most important decision when using the plugin, so please read this b
 | --- | --- | --- |
 | Cargo feature | `pyo3` (enabled by default) | `rustpython` |
 | Interpreter | the real CPython | a Python interpreter written in Rust |
-| Library compatibility | full – anything that runs on CPython, incl. C extensions (numpy, pandas, …) | **limited** – pure-Python only, and a meaningful part of the **standard library is missing or incomplete** |
-| Needs Python on the target machine | yes (libpython must be available, see below) | **no** – linked statically into your binary |
+| Library compatibility | full – anything that runs on CPython, incl. C extensions (numpy, pandas, …) | **limited** – pure-Python code and the pure-Python stdlib; no C extensions, no `sqlite3`, no `ssl` |
+| `async def` functions | ✓ | ✗ |
+| Compiled `main` (Nuitka, `.pyc`) | ✓ | ✗ |
+| Needs Python on the target machine | no, if you bundle one with the [CLI](#pyo3--cpython) | **no** – interpreter and stdlib are compiled into your binary |
 | Speed | fast (CPython) | slower |
-| Deployment | more involved (ship/embed libpython) | trivial (single binary) |
+| Deployment | `tauri-plugin-python-cli setup` before `tauri build` | trivial (single binary) |
 
 > [!IMPORTANT]
-> **RustPython is convenient for deployment but it is not a complete Python.** It is *not* a drop-in CPython.
-> Several standard-library modules are missing, incomplete or behave differently, and some text codecs
-> (e.g. `latin-1`) and modules such as `inspect` may not be importable. Code – including the plugin's own
-> optional `registerFunction` argument-count check – that relies on these will silently degrade or fail on
-> RustPython but work fine on PyO3. **If a library or stdlib feature doesn't work under RustPython, switch
-> to the PyO3 backend before assuming it's a bug.**
+> **RustPython is convenient for deployment but it is not a complete Python.** The pure-Python part of the
+> standard library (`json`, `typing`, `inspect`, `dataclasses`, `pathlib`, `logging`, …) is compiled into the
+> binary, but everything that needs CPython C extensions is missing: `sqlite3`, `ssl`, and third-party packages
+> such as numpy or pydantic-core. `async def` functions can't be called yet. **If a library doesn't work under
+> RustPython, switch to the PyO3 backend before assuming it's a bug.**
 
-The plugin uses **PyO3 by default** because of its full compatibility. The trade-off is that PyO3 needs
-`libpython` to be available for the target platform, which can be more complicated to deploy (see
-[Deployment](#deployment)), especially on mobile. Pick RustPython when you want a single self-contained
-binary and your Python code stays within what RustPython supports.
+The plugin uses **PyO3 by default** because of its full compatibility. The trade-off is that the app needs a
+`libpython` at runtime; [`tauri-plugin-python-cli`](#pyo3--cpython) bundles one for desktop targets. Mobile
+currently needs RustPython. Pick RustPython when you want a single self-contained binary and your Python code
+stays within what RustPython supports.
 
 The plugin reads by default the file `src-tauri/src-python/main.py` during  
 startup and runs it immediately. Make sure to add all your python source as tauri resource,  
@@ -93,7 +113,7 @@ You can use this plugin for fast prototypes or for (early) production code.
 It might be possible that you want to use some python library or code that  
 is not available for rust yet.  
 In case that you want to ship production software packages, you need  
-to make sure to also ship all your python code. If you use PyO3, you also need to ship libpython too.
+to make sure to also ship all your python code. If you use PyO3, you also need to ship a Python, see [Deployment](#deployment).
 
 ### Switch from PyO3 to RustPython
 PyO3 is the default. To get a self-contained binary that does **not** require Python on the target
@@ -101,32 +121,46 @@ machine, switch to the RustPython backend by disabling the default features and 
 (keep `venv` if you rely on automatic `.venv` loading). Remember the [limitations above](#choosing-an-interpreter-pyo3-vs-rustpython).
 ```toml
 # src-tauri/Cargo.toml
-tauri-plugin-python = { version = "0.3", default-features = false, features = ["venv", "rustpython"] }
+tauri-plugin-python = { version = "0.4", default-features = false, features = ["venv", "rustpython"] }
 ```
 
-### PyO3 / libpython deployment
-Using [PyO3](https://github.com/PyO3/pyo3) supports many more python libraries than RustPython as it is using CPython.
-The trade-off is that PyO3 uses a shared libpython by default, which makes
-local development easy but makes
-deployment of releases more complicated.
-Therefore, it may be recommended to either use [pyoxidizer](https://github.com/indygreg/PyOxidizer) to embed libpython statically 
-or try to ship the dynamic libpython together with your application, for example as part
-of the .venv. Check out the [PyO3 documentation](https://pyo3.rs/main/building-and-distribution) for additional support.
+`rustpython-stdlib` 0.5 pulls in `malachite-bigint` twice (0.9 directly and 0.14
+via `pymath`) on a fresh lockfile, which fails to compile with type mismatches.
+Pin the second copy to 0.9.2 once after adding the dependency:
 
-Example of how to embed libpython statically using PyOxidizer:
-
-This has just been tested locally on MacOS. It may be possible that this is more complicated and requires additional steps on your environment.
-
-Install pyoxidizer `pip install pyoxidizer` in a venv and run it on bash:
-```bash
-pyoxidizer generate-python-embedding-artifacts src-tauri/target/pyembed
+```sh
+cargo update -p malachite-bigint@0.14.0 --precise 0.9.2
 ```
-Then, add it to your cargo config:
-```toml
-# src-tauri/.cargo/config.toml
-PYO3_CONFIG_FILE = { value = "target/pyembed/pyo3-build-config-file.txt", relative = true }
+
+`npx tauri-plugin-python-cli doctor --fix` detects and applies this pin. See also the
+[async_py README](https://github.com/marcomq/async_py#rustpython).
+
+## Async functions
+
+`async def` functions can be registered and called like normal ones; the plugin awaits them and returns the
+result (PyO3 backend only):
+```python
+import asyncio
+_tauri_plugin_functions = ["fetch_answer"]
+
+async def fetch_answer(question):
+    await asyncio.sleep(0.1)
+    return f"42 is the answer to {question}"
 ```
-You can check if the release binary has some shared libpython references by running `otool -L tauri_app` on MacOs or `ldd tauri_app` on linux.
+
+The check happens at registration with `inspect.iscoroutinefunction`. A plain function that only *returns* a
+coroutine (e.g. wrapped by a sync decorator) isn't awaited; write such wrappers as `async def`.
+
+## Compiled entry point (Nuitka, `.pyc`)
+
+If `src-python/main.py` doesn't exist, the plugin imports a compiled module named `main` from `src-python/`
+instead: `main.cpython-313-darwin.so`, `main.pyd`, `main.pyc`, …. This lets you ship your code compiled, e.g.
+with [Nuitka](https://nuitka.net/):
+```sh
+python -m nuitka --module src-tauri/src-python/main.py --output-dir=src-tauri/src-python
+```
+Compiled modules only load into the exact Python version they were built for, so build them with the same
+Python version you bundle (see `src-python/.python-version` below). PyO3 backend only.
 
 ## Example app
 
@@ -181,9 +215,16 @@ console.log(await call.greet_python("input value"));
 ```
 ## Using a venv
 
-Using a python venv is highly recommended when using pip dependencies (PyO3 backend).
+> [!NOTE]
+> For releases, prefer `src-python/requirements.txt`: `tauri-plugin-python-cli setup` installs it into the
+> bundled Python, which works on any machine. A `src-python/.venv` is bundled along with `src-python/` and
+> loaded in addition, but only if it was created with the same Python version; otherwise the plugin prints a
+> warning and ignores it.
 
-**Put the venv at `src-python/.venv`.** The plugin auto-loads `<src-python>/.venv/lib` at startup, and
+Using a python venv is highly recommended when using pip dependencies during development (PyO3 backend).
+
+**Put the venv at `src-python/.venv`.** At startup the plugin adds its `site-packages` to `sys.path` if it
+matches the running Python version (otherwise it prints a warning), and
 keeping the venv *inside* `src-python` is the configuration that reliably works both in `tauri dev` and in
 production builds (a venv that lives outside `src-python` works in dev but commonly breaks in the bundled
 app – this was the root cause for several "works in dev, not in prod" reports):
@@ -242,11 +283,13 @@ Common causes:
 - **`Cannot register '<name>': not found in Python`** – `main.py` didn't define/import that name, or `main.py`
   itself failed to load. Make sure `src-python/main.py` exists, is bundled as a resource (see
   [Deployment](#deployment)), and runs without errors on its own.
-- **A `ModuleNotFoundError`, missing-stdlib, codec (`unknown encoding`) or `inspect` error only on RustPython** –
+- **A `ModuleNotFoundError` (e.g. `sqlite3`, `ssl` or a C extension package) only on RustPython** –
   this is almost always a [RustPython limitation](#choosing-an-interpreter-pyo3-vs-rustpython), not a bug.
   Try the same code under the PyO3 backend to confirm, and prefer PyO3 if you need that library.
-- **Missing pip dependency** – ensure you are [using a venv](#using-a-venv) and that its `lib` folder is shipped
-  as a resource next to `src-python`.
+- **Missing pip dependency** – add it to `src-python/requirements.txt` and run `tauri-plugin-python-cli setup`
+  again, or, in development, install it into your [venv](#using-a-venv).
+- **Something else is off** – run `npx tauri-plugin-python-cli doctor`; it checks entry point, resources and the
+  bundled Python, and after a build also which `libpython` the binary loads.
 
 To sanity-check your Python independently of Tauri, run `python3 src-tauri/src-python/main.py` directly
 (this validates it against CPython; RustPython may still differ – see the limitations above).
@@ -281,34 +324,54 @@ installed**. Just bundle your `src-python/` resources. (Remember the
 [stdlib limitations](#choosing-an-interpreter-pyo3-vs-rustpython).)
 
 ### PyO3 / CPython
-PyO3 needs a `libpython` at runtime, which is what makes PyO3 deployment harder.
+PyO3 links `libpython` at build time, and the OS loader looks for exactly that library at runtime. Without
+further steps the app therefore only starts on machines that have the same Python at the same location as the
+build machine. [`tauri-plugin-python-cli`](https://github.com/marcomq/tauri-plugin-python/tree/main/cli) bundles a relocatable
+[python-build-standalone](https://github.com/astral-sh/python-build-standalone) interpreter instead:
 
-> [!IMPORTANT]
-> **The plugin has no runtime setting to "point" at a Python install.** Which `libpython` is used is fixed when
-> PyO3 is *linked at build time*; at runtime the OS dynamic loader finds it via the normal library search path
-> (rpath, `DYLD_LIBRARY_PATH`/`LD_LIBRARY_PATH`, system locations). The only environment variable this plugin reads
-> is [`TAURI_PLUGIN_PYTHON_TIMEOUT_SECS`](#call-timeout). So "shipping a Python" means controlling the *build link*
-> **and** making the matching `libpython` resolvable next to your binary at runtime — not configuring the plugin.
+```sh
+npx tauri-plugin-python-cli setup     # once, after cloning, and when requirements change
+npm run tauri build
+npx tauri-plugin-python-cli doctor    # optional: checks which libpython the built app loads
+```
 
-Options, easiest first:
+Step-by-step guides: **[macOS](https://github.com/marcomq/tauri-plugin-python/blob/main/docs/deploy-macos.md)** · **[Linux](https://github.com/marcomq/tauri-plugin-python/blob/main/docs/deploy-linux.md)** ·
+**[Windows](https://github.com/marcomq/tauri-plugin-python/blob/main/docs/deploy-windows.md)**
 
-1. **Ship the shared libpython** next to the executable / inside the `.venv` you bundle. Check what your binary is
-   linked against with `otool -L tauri_app` (macOS) or `ldd tauri_app` (Linux); a line such as
-   `.../Python.framework/Versions/3.13/Python` tells you which version and location the target must provide. Bundle
-   that library (and set an rpath / co-locate it) so the loader finds it. The target machine then needs no separately
-   installed Python.
-2. **Build against an embeddable / standalone Python**, then ship it. Point PyO3 at a self-contained Python
-   (e.g. [python-build-standalone](https://github.com/astral-sh/python-build-standalone) or the Windows embeddable
-   zip) at **build time** via a `PYO3_CONFIG_FILE` (see [PyO3 build & distribution](https://pyo3.rs/main/building-and-distribution)),
-   bundle that same Python as a resource, and ensure its `libpython` is on the runtime search path. There is no
-   plugin-side "load this interpreter" call — it is standard PyO3 packaging. For one community example of wiring an
-   embedded Python into a Tauri app, see [@Qingbao's tauri-agent](https://github.com/Qingbao/tauri-agent)
-   (third-party, not tested by us – treat it as a starting point, not a recommendation).
-3. **PyOxidizer / static linking** is possible but currently fragile (unmaintained `pyembed`, pyo3-version
-   conflicts). Not recommended unless you specifically need it.
+`setup` downloads Python into `src-tauri/pyembed/`,
+installs `src-python/requirements.txt` into it, and configures the build:
 
-In all cases, also bundle your [venv](#using-a-venv) (`src-python/.venv`) for pip dependencies. Note the venv only
-adds its `site-packages` to `sys.path`; it does **not** supply `libpython`, so you still need one of the options above.
+- `src-tauri/.cargo/config.toml` gets a managed block with `PYO3_CONFIG_FILE` (link against the bundled
+  `libpython`) and, on macOS and Linux, an rpath so the binary finds it inside the app bundle.
+- `tauri.<os>.conf.json` registers the Python runtime as resources. Your `bundle.resources` in
+  `tauri.conf.json` is converted to the object form so tauri can merge both.
+- `/pyembed/` is added to `src-tauri/.gitignore`; it is machine specific.
+
+Commit the config changes and run `setup` after every clone and in CI before `tauri build`. Without it, the build fails with `failed to open PyO3 config file at …/pyembed/pyo3-config.txt`,
+because the committed `.cargo/config.toml` points to a file in the uncommitted `pyembed/`.
+
+The Python version comes from `src-python/.python-version` (e.g. `3.13`, same format as `uv python pin`). If the
+file is missing, `setup` takes the newest Python that reached its x.y.2 bugfix release (`stable`) and writes its
+minor version there. Commit that file so the team and CI bundle the same version. To change it, edit the file or
+run `setup --python 3.14` (also an exact `3.14.2`, `stable` or `latest`), which updates the file.
+
+At startup the plugin finds `pyembed/python` in the resources (or in `src-tauri` during `tauri dev`) and uses
+it as `PYTHONHOME`. Without `pyembed/` the plugin uses the Python it was linked against, as before.
+
+Notes per platform:
+
+- **Build on each target OS.** The bundled Python is native code; build the macOS app on macOS, the Linux
+  packages on Linux and the Windows installer on Windows, e.g. in a CI matrix. Run `setup` in CI before
+  `tauri build`; downloads are cached in `~/.cache/tauri-plugin-python-cli`.
+- **macOS:** notarization requires every native file in the app to be signed. Tauri only signs the main binary,
+  so run `npx tauri-plugin-python-cli sign` (uses `APPLE_SIGNING_IDENTITY`) **before** `tauri build`; it signs
+  the files in `src-tauri/pyembed`, which tauri then copies into the app.
+- **Windows:** `python3XX.dll` is placed next to the `.exe`, the rest under `pyembed/`.
+- **Linux:** the runtime lands in `/usr/lib/<productName>/pyembed/`.
+- `RUSTFLAGS` in the environment replaces the rpaths from `.cargo/config.toml`; `doctor` warns about it.
+
+If you prefer to wire it up yourself: everything `setup` writes is plain tauri and cargo configuration, see
+[cli/README.md](https://github.com/marcomq/tauri-plugin-python/tree/main/cli) and [PyO3 build & distribution](https://pyo3.rs/main/building-and-distribution).
 
 ### Windows: hidden console & stdio
 Tauri release builds hide the console (`#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]` in
@@ -332,12 +395,13 @@ single and serial, so a call that never returns still occupies it until it finis
 This is the most common deployment problem. Check, in order:
 1. Is `src-python/` (incl. `main.py`) listed under `bundle.resources` in `tauri.conf.json`? Inspect the installed
    app's resource folder to confirm the files are actually there with the same structure as locally.
-2. **PyO3 + pip deps not working in prod** → your `.venv` isn't bundled or isn't at `src-python/.venv`. Move it
-   inside `src-python` and bundle it (see [Using a venv](#using-a-venv)).
-3. **PyO3 app won't launch at all** → missing `libpython` on the target; ship an embeddable Python or the shared
-   library (above).
-4. **C-extension packages (numpy, …) fail in prod** → the venv was built for a different OS/arch than you shipped.
-   Rebuild it for the target platform (ideally in CI).
+   Debug builds fall back to `src-python/` in the current directory, release builds don't.
+2. **PyO3 app won't launch at all, or only on your machine** → the app has no bundled Python. Run
+   `npx tauri-plugin-python-cli setup` before `tauri build` (see [PyO3 / CPython](#pyo3--cpython)), then
+   `npx tauri-plugin-python-cli doctor`.
+3. **PyO3 + pip deps not working in prod** → list them in `src-python/requirements.txt` and run `setup` again.
+4. **C-extension packages (numpy, …) fail in prod** → they were installed for a different OS/arch than you
+   shipped. Run `setup` and `tauri build` on each target platform (ideally in CI).
 5. Still stuck? Temporarily build with the console visible (remove the `windows_subsystem` line on Windows, or run
    the binary from a terminal) to see startup errors, and see [Debugging](#debugging).
 

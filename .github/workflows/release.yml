@@ -137,3 +137,43 @@ jobs:
           else
             npm publish --access public
           fi
+
+  # tauri-plugin-python-cli (cli/) is a separate npm package with its own
+  # Trusted Publisher entry on npmjs.com.
+  publish-npm-cli:
+    name: Publish CLI to npm
+    runs-on: ubuntu-22.04
+    needs: release
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: check
+        run: |
+          npm install
+          npm run typecheck
+          npm test
+
+      - name: Publish to npm
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if [ -n "$(npm view "$NAME@$VERSION" version 2>/dev/null)" ]; then
+            echo "npm already has $NAME@$VERSION — skipping publish."
+          else
+            npm publish --access public
+          fi

@@ -3,11 +3,11 @@
 //  Licensed under MIT License, see License file for more details
 //  git clone https://github.com/marcomq/tauri-plugin-python
 
-use tauri::{command, AppHandle, Runtime};
+use tauri::{AppHandle, Runtime, command};
 
-use crate::models::*;
 use crate::PythonExt;
 use crate::Result;
+use crate::models::*;
 
 #[command]
 pub(crate) async fn run_python<R: Runtime>(
