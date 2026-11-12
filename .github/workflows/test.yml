@@ -243,9 +243,10 @@ jobs:
               dpkg -x $BUNDLE/deb/*.deb "$DEST"
               EXE=$(ls "$DEST"/usr/bin/* | head -n1) ;;
             Windows)
-              # Backslashes of $RUNNER_TEMP would act as glob escapes in Git Bash.
-              DEST="$(cygpath -u "$RUNNER_TEMP")/installed"
-              $BUNDLE/nsis/*-setup.exe //S "//D=$(cygpath -w "$DEST")"
+              # The tauri NSIS installer ignores /D and installs per user to %LOCALAPPDATA%\<productName>.
+              PRODUCT=$(node -p "require('./src-tauri/tauri.conf.json').productName")
+              DEST="$(cygpath -u "$LOCALAPPDATA")/$PRODUCT"
+              $BUNDLE/nsis/*-setup.exe //S
               for _ in $(seq 30); do
                 EXE=$(ls "$DEST"/*.exe 2>/dev/null | grep -vi uninstall | head -n1 || true)
                 [ -n "$EXE" ] && break
@@ -269,3 +270,22 @@ jobs:
           else
             node ci/launch_bundled.mjs "${{ steps.install.outputs.exe }}" "$REPORT"
           fi
+
+      # Like a user: apt-installs the .deb on a fresh Ubuntu without any Python.
+      - name: install and start in a clean container (no Python)
+        if: runner.os == 'Linux'
+        run: |
+          DEB=$(ls src-tauri/target/release/bundle/deb/*.deb)
+          docker run --rm \
+            -v "$PWD:/work:ro" -v "$(dirname "$(command -v node)"):/opt/node:ro" \
+            -e DEB="/work/$DEB" ubuntu:22.04 bash -euo pipefail -c '
+              export DEBIAN_FRONTEND=noninteractive PATH="/opt/node:$PATH"
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends "$DEB" xvfb xauth > /dev/null
+              if compgen -G "/usr/lib/*/libpython3*" > /dev/null || command -v python3; then
+                echo "FAIL: the container has a system Python"; exit 1
+              fi
+              EXE=$(dpkg -L "$(dpkg-deb -f "$DEB" Package)" | grep "^/usr/bin/" | head -n1)
+              mkdir -p /tmp/run
+              xvfb-run -a node /work/ci/launch_bundled.mjs "$EXE" /tmp/run/report.txt
+            '

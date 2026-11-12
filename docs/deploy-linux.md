@@ -87,8 +87,8 @@ test like a user, install the package on a clean machine or container without Py
 dpkg -c src-tauri/target/release/bundle/deb/*.deb | grep pyembed   # files land in /usr/lib/<productName>/pyembed
 ```
 
-The CI of this repository installs and starts the `.deb` this way. `rpm` and AppImage use the same layout but
-are not tested in CI.
+The CI of this repository installs the `.deb` with `apt` in a fresh `ubuntu:22.04` container without Python and
+starts it there. `rpm` and AppImage use the same layout but are not tested in CI.
 
 ## CI (GitHub Actions)
 
