@@ -218,10 +218,12 @@ function checkBinaries(srcTauri, os, manifest, report) {
     const linkage = inspectLinkage(bin, os);
     if (!linkage) continue;
     const bundled = linkage.rpaths.some((p) => p.includes(`${PYTHON_DIR}/lib`));
+    // A stale dev build is never shipped, so it must not fail the check.
+    const fail = profile === "debug" ? report.warn : report.error;
     if (!linkage.libpython) report.warn(`${rel}: no libpython dependency found`);
     else if (linkage.libpython.startsWith("/")) {
-      report.error(`${rel}: links the host Python (${linkage.libpython}); rebuild after 'setup'`);
-    } else if (!bundled) report.error(`${rel}: no rpath to ${PYTHON_DIR}/lib; rebuild after 'setup'`);
+      fail(`${rel}: links the host Python (${linkage.libpython}); rebuild after 'setup'`);
+    } else if (!bundled) fail(`${rel}: no rpath to ${PYTHON_DIR}/lib; rebuild after 'setup'`);
     else report.ok(`${rel}: links ${linkage.libpython} from the bundled Python`);
   }
 }

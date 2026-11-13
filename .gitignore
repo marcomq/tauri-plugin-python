@@ -17,3 +17,5 @@ dist-js
 !dist-js/*.iife.js
 .tokensave
 .serena
+# local-only test app, not versioned
+/examples/svelte-app/

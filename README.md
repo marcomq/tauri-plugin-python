@@ -15,7 +15,9 @@ backend and works immediately in `tauri dev`:
 
 ```sh
 npm run tauri add python
+npm install tauri-plugin-python-api
 ```
+`tauri add` only installs the Rust side; the second line adds the JavaScript API.
 
 Create `src-tauri/src-python/main.py`:
 ```python
@@ -157,10 +159,16 @@ If `src-python/main.py` doesn't exist, the plugin imports a compiled module name
 instead: `main.cpython-313-darwin.so`, `main.pyd`, `main.pyc`, …. This lets you ship your code compiled, e.g.
 with [Nuitka](https://nuitka.net/):
 ```sh
-python -m nuitka --module src-tauri/src-python/main.py --output-dir=src-tauri/src-python
+# keep the source outside src-python, e.g. in src-tauri/python-src/main.py
+src-tauri/pyembed/python/bin/python3 -m venv .nuitka-venv   # same Python as the app (after `setup`)
+.nuitka-venv/bin/pip install nuitka
+.nuitka-venv/bin/python -m nuitka --module src-tauri/python-src/main.py \
+  --output-dir=src-tauri/src-python --remove-output --no-pyi-file
 ```
-Compiled modules only load into the exact Python version they were built for, so build them with the same
-Python version you bundle (see `src-python/.python-version` below). PyO3 backend only.
+`main.py` takes precedence, so it must not be in `src-python/` next to the compiled module; everything in
+`src-python/` is bundled. Compiled modules only load into the exact Python version they were built for, so
+build them with the Python you bundle (see `src-python/.python-version` below). On macOS, run
+`tauri-plugin-python-cli sign` afterwards, so they are signed for notarization. PyO3 backend only.
 
 ## Example app
 
@@ -171,7 +179,7 @@ Javascript in [examples/plain-javascript](https://github.com/marcomq/tauri-plugi
 
 These steps assume that you already have a basic tauri application available. Alternatively, you can immediately start with the application in "example" directory.
 
-- run `npm run tauri add python`
+- run `npm run tauri add python` and `npm install tauri-plugin-python-api`
 - add `src-tauri/src-python/main.py` and modify it according to your needs, for example add  
 ```python
 # src-tauri/src-python/main.py
@@ -263,13 +271,24 @@ When a Python call fails, the plugin returns the error to the frontend (it is th
 try {
   await call.greet_python("input value");
 } catch (err) {
-  console.error(err); // contains the Python error message / traceback
+  console.error(err); // Python error message, with traceback in development builds
 }
 ```
 
-In addition, in **development builds** (`tauri dev`, i.e. any non-release build) the plugin prints the full
-error – including the Python traceback – to **stderr**, prefixed with `[tauri-plugin-python]`. Watch the
-terminal running `tauri dev` to see it. Release builds do not log, so nothing leaks to end users.
+The plugin never shows errors in the UI itself; what the user sees is up to your frontend code.
+
+In **development builds** (`tauri dev`, i.e. any non-release build) the error contains the full Python
+traceback, and the plugin also prints it to **stderr**, prefixed with `[tauri-plugin-python]`. Watch the
+terminal running `tauri dev` to see it. **Release builds** drop the traceback and log nothing: the frontend
+only receives the last line, e.g. `ValueError: invalid input`, so file paths and source lines don't leak to
+end users.
+
+For errors that only happen in the release build, start the app with `TAURI_PLUGIN_PYTHON_TRACEBACK=1`.
+Errors then contain the traceback and are printed to stderr, as in development builds:
+
+```sh
+TAURI_PLUGIN_PYTHON_TRACEBACK=1 ./MyApp.app/Contents/MacOS/MyApp   # macOS; on Windows: set the variable, then start the .exe
+```
 
 The error message is also prefixed with what the plugin was doing, e.g.
 `Error calling Python function 'greet_python': ...` or
@@ -365,7 +384,7 @@ Notes per platform:
   `tauri build`; downloads are cached in `~/.cache/tauri-plugin-python-cli`.
 - **macOS:** notarization requires every native file in the app to be signed. Tauri only signs the main binary,
   so run `npx tauri-plugin-python-cli sign` (uses `APPLE_SIGNING_IDENTITY`) **before** `tauri build`; it signs
-  the files in `src-tauri/pyembed`, which tauri then copies into the app.
+  the native files in `src-tauri/pyembed` and `src-tauri/src-python`, which tauri then copies into the app.
 - **Windows:** `python3XX.dll` is placed next to the `.exe`, the rest under `pyembed/`.
 - **Linux:** the runtime lands in `/usr/lib/<productName>/pyembed/`.
 - `RUSTFLAGS` in the environment replaces the rpaths from `.cargo/config.toml`; `doctor` warns about it.

@@ -340,3 +340,19 @@ mod entry_detection {
         assert_eq!(find_entry(&dir.path().join("missing")), None);
     }
 }
+
+mod traceback {
+    use super::*;
+
+    #[test]
+    fn env_var_enables_tracebacks() {
+        assert!(tracebacks_enabled(Some("1")));
+        assert!(tracebacks_enabled(Some(" TRUE ")));
+    }
+
+    #[test]
+    fn without_env_var_only_debug_builds_have_tracebacks() {
+        assert_eq!(tracebacks_enabled(None), cfg!(debug_assertions));
+        assert_eq!(tracebacks_enabled(Some("0")), cfg!(debug_assertions));
+    }
+}

@@ -13,7 +13,7 @@ use tauri::{
 /// It also runs some initial Python code to set up a variable and a function for testing.
 async fn mock_app_handle() -> AppHandle<MockRuntime> {
     let app = test::mock_app();
-    let runner = PyRunner::new();
+    let runner = build_runner();
     app.manage(runner);
     app.manage(PluginState::default());
 
@@ -395,15 +395,12 @@ async fn test_error_message_propagates_from_called_function() {
     );
 }
 
-// Only the RustPython backend includes a traceback (with line numbers) in the
-// error string; PyO3 surfaces just "ExceptionType: message". This pins down that
-// running PY_STDIO_GUARD as a *separate* unit beforehand does not shift the line
-// numbers reported for subsequently-run user code (the line-3 raise stays line 3).
-#[cfg(feature = "rustpython")]
+// Pins down that running PY_STDIO_GUARD as a *separate* unit beforehand does not
+// shift the line numbers in the traceback of subsequently-run user code. Tracebacks
+// are forced on, as `cargo test --release` would otherwise run without them.
 #[tokio::test]
 async fn test_error_line_number_not_shifted_by_stdio_guard() {
-    let app = mock_app_handle().await;
-    let runner = app.state::<PyRunner>().inner();
+    let runner = PyRunner::new().with_tracebacks(true);
     runner.run(PY_STDIO_GUARD).await.unwrap();
     let code = "x = 1\ny = 2\nraise ValueError('boom')\n";
     let err = runner.run(code).await.unwrap_err().to_string();

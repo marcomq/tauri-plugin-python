@@ -75,8 +75,11 @@ sys.stderr = _TauriSafeStream(getattr(sys, "stderr", None))
 
 /// Builds the shared [`PyRunner`], applying the default per-call timeout unless
 /// the `TAURI_PLUGIN_PYTHON_TIMEOUT_SECS` env var overrides it (`0` = no timeout).
+/// Errors include Python tracebacks if [`tracebacks_enabled`].
 fn build_runner() -> PyRunner {
-    let runner = PyRunner::new();
+    let runner = PyRunner::new().with_tracebacks(tracebacks_enabled(
+        std::env::var(TRACEBACK_ENV).ok().as_deref(),
+    ));
     match call_timeout(
         std::env::var("TAURI_PLUGIN_PYTHON_TIMEOUT_SECS")
             .ok()
@@ -85,6 +88,15 @@ fn build_runner() -> PyRunner {
         Some(timeout) => runner.with_timeout(timeout),
         None => runner,
     }
+}
+
+const TRACEBACK_ENV: &str = "TAURI_PLUGIN_PYTHON_TRACEBACK";
+
+/// Tracebacks are on in debug builds, and in release builds if the
+/// `TAURI_PLUGIN_PYTHON_TRACEBACK` env var is `1` or `true`.
+fn tracebacks_enabled(env_value: Option<&str>) -> bool {
+    cfg!(debug_assertions)
+        || env_value.is_some_and(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true"))
 }
 
 /// Resolves the per-call timeout from the raw env var value; `None` disables it.
@@ -111,16 +123,18 @@ struct PluginState {
 /// Prepends human-readable context to a failing Python operation and, in debug
 /// builds (`tauri dev`), prints the full detail - including the Python traceback
 /// carried in the underlying error - to stderr so it is visible in the dev
-/// console. The original error message is preserved in the returned error, so it
-/// also still reaches the frontend. In release builds nothing is logged.
+/// console. The full message, traceback included, also reaches the frontend.
+/// Release builds log nothing and their errors carry no traceback, unless
+/// `TAURI_PLUGIN_PYTHON_TRACEBACK` enables both (see [`tracebacks_enabled`]).
 fn py_context<T, E: Into<Error>>(
     result: std::result::Result<T, E>,
     context: impl FnOnce() -> String,
 ) -> crate::Result<T> {
     result.map_err(|err| {
         let msg = format!("{}: {}", context(), err.into());
-        #[cfg(debug_assertions)]
-        eprintln!("[tauri-plugin-python] {msg}");
+        if tracebacks_enabled(std::env::var(TRACEBACK_ENV).ok().as_deref()) {
+            eprintln!("[tauri-plugin-python] {msg}");
+        }
         Error::String(msg)
     })
 }
@@ -288,6 +302,17 @@ enum PythonEntry {
     File(PathBuf),
     /// A compiled module (e.g. `nuitka --module main.py`) in `dir`, imported via `run_module`.
     Module { name: String, dir: PathBuf },
+}
+
+impl std::fmt::Display for PythonEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PythonEntry::File(path) => write!(f, "'{}'", path.display()),
+            PythonEntry::Module { name, dir } => {
+                write!(f, "compiled module '{name}' from '{}'", dir.display())
+            }
+        }
+    }
 }
 
 const ENTRY_MODULE: &str = "main";
@@ -466,8 +491,9 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
             let mut dir = get_resource_dir(app);
             let mut entry = find_entry(&dir);
             if entry.is_none() {
-                println!(
-                    "Warning: 'src-tauri/main.py' seems not to be registered in 'tauri.conf.json'"
+                eprintln!(
+                    "[tauri-plugin-python] Warning: no main.py or compiled 'main' module in '{}'; is 'src-python/' listed in bundle.resources of tauri.conf.json?",
+                    dir.display()
                 );
                 // Release builds must not run Python code from wherever they are started.
                 if cfg!(debug_assertions) {
@@ -481,9 +507,9 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
                 .block_on(async move {
                     let runner = app.state::<PyRunner>().inner();
                     init_python(runner, dir.to_path_buf()).await;
-                    run_entry(runner, &entry)
-                        .await
-                        .expect("ERROR: Error running 'src-tauri/main.py'");
+                    if let Err(err) = run_entry(runner, &entry).await {
+                        startup_failed(&format!("Failed to load {entry}"), err);
+                    }
                     register_python_functions(
                         app,
                         python_functions.iter().map(|s| s.to_string()).collect(),
@@ -505,13 +531,27 @@ pub fn init_and_register<R: Runtime>(python_functions: Vec<&'static str>) -> Tau
 
 async fn register_python_functions<R: Runtime>(app: &AppHandle<R>, python_functions: Vec<String>) {
     for function_name in python_functions {
-        app.register_function(RegisterRequest {
-            python_function_call: function_name.clone(),
-            number_of_args: None,
-        })
-        .await
-        .unwrap();
+        if let Err(err) = app
+            .register_function(RegisterRequest {
+                python_function_call: function_name.clone(),
+                number_of_args: None,
+            })
+            .await
+        {
+            startup_failed("Failed to register Python functions", err);
+        }
     }
+}
+
+/// Aborts plugin initialization with a readable message instead of a `Debug`-formatted error.
+fn startup_failed(context: &str, err: impl std::fmt::Display) -> ! {
+    let mut msg = format!("[tauri-plugin-python] {context}: {err}");
+    if msg.contains("bad magic number") {
+        msg.push_str(
+            "\nHint: the compiled module was built for a different Python version than the one the app runs",
+        );
+    }
+    panic!("{msg}");
 }
 
 #[cfg(test)]
