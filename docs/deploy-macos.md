@@ -72,9 +72,9 @@ export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
 npx tauri-plugin-python-cli sign
 ```
 
-This signs every Mach-O file in `src-tauri/pyembed/python` with `--options runtime --timestamp`. Pass
-`--entitlements <plist>` if your packages need extra hardened-runtime entitlements. Run `sign` again after each
-`setup`.
+This signs every Mach-O file in `src-tauri/pyembed/python` and `src-tauri/src-python` (compiled modules, C
+extensions in a `.venv`) with `--options runtime --timestamp`. Pass `--entitlements <plist>` if your packages
+need extra hardened-runtime entitlements. Run `sign` again after each `setup` and after compiling modules.
 
 ## 5. Build
 

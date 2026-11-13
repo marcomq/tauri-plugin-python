@@ -59,6 +59,8 @@ detects the duplicate `malachite-bigint` versions that break the build;
 
 Notarization rejects unsigned native files anywhere in the app, and tauri only
 signs the main binary and frameworks. `sign` signs every Mach-O file in the
-bundled Python with `--options runtime --timestamp`, using `--identity` or
+bundled Python and in `src-python` (compiled modules, C extensions in a `.venv`)
+with `--options runtime --timestamp`, using `--identity` or
 `APPLE_SIGNING_IDENTITY` (the same variable `tauri build` uses). It signs the
-files in `src-tauri/pyembed`, so run it after `setup` and before `tauri build`.
+files in `src-tauri/pyembed` and `src-tauri/src-python`, so run it after `setup`
+(and after compiling modules) and before `tauri build`.

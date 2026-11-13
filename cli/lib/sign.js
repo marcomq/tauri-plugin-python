@@ -49,10 +49,13 @@ export function sign(opts, log = console.log) {
   if (process.platform !== "darwin") throw new Error("'sign' is only needed (and possible) on macOS");
   const identity = opts.identity ?? process.env.APPLE_SIGNING_IDENTITY;
   if (!identity) throw new Error("Pass --identity or set APPLE_SIGNING_IDENTITY (as for tauri build)");
-  const pythonDir = path.join(findSrcTauri(opts.project), PYTHON_DIR);
+  const srcTauri = findSrcTauri(opts.project);
+  const pythonDir = path.join(srcTauri, PYTHON_DIR);
   if (!fs.existsSync(pythonDir)) throw new Error(`${PYTHON_DIR} not found. Run 'setup' first`);
+  // Compiled modules (Nuitka, Cython) and C extensions in a .venv are bundled from src-python.
+  const dirs = [pythonDir, path.join(srcTauri, "src-python")].filter((d) => fs.existsSync(d));
 
-  const targets = [...files(pythonDir)].filter(isMachO);
+  const targets = dirs.flatMap((d) => [...files(d)]).filter(isMachO);
   const args = ["--force", "--sign", identity];
   if (identity !== "-") args.push("--timestamp", "--options", "runtime");
   if (opts.entitlements) args.push("--entitlements", opts.entitlements);
@@ -60,5 +63,5 @@ export function sign(opts, log = console.log) {
     const res = spawnSync("codesign", [...args, file], { stdio: "inherit" });
     if (res.status !== 0) throw new Error(`codesign failed for ${file}`);
   }
-  log(`Signed ${targets.length} files in ${PYTHON_DIR}`);
+  log(`Signed ${targets.length} files in ${dirs.map((d) => path.relative(srcTauri, d)).join(", ")}`);
 }
